@@ -16,95 +16,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    switch (req.method) {
-      case 'GET':
-        return getReservations(req, res);
-      default:
-        return res.status(405).json({ message: 'Method not allowed' });
-    }
-  } catch (error) {
-    console.error('Authentication error:', error);
-    return res.status(401).json({ message: 'Authentication failed' });
-  }
-}
-
-async function getReservations(req: NextApiRequest, res: NextApiResponse) {
-  try {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 10;
-    const status = req.query.status as ReservationStatus | 'ALL';
-    const search = req.query.search as string | undefined;
-
-    // Build where clause
-    const where: any = {};
-    
-    if (status && status !== 'ALL') {
-      where.status = status;
-    }
-    
-    if (search) {
-      where.OR = [
-        {
-          user: {
-            OR: [
-              { firstName: { contains: search, mode: 'insensitive' } },
-              { lastName: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-            ],
-          },
-        },
-        {
-          equipment: {
-            name: { contains: search, mode: 'insensitive' },
-          },
-        },
-      ];
-    }
-
-    // Get total count for pagination
-    const total = await prisma.reservation.count({ where });
-
-    // Get paginated reservations with full details
-    const items = await prisma.reservation.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        equipment: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            category: {
+    if (req.method === 'GET') {
+      try {
+        console.log('Fetching reservations...');
+        const reservations = await prisma.reservation.findMany({
+          include: {
+            user: {
               select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+            equipment: {
+              select: {
+                id: true,
                 name: true,
+                description: true,
+                category: {
+                  select: {
+                    name: true,
+                  },
+                },
               },
             },
           },
-        },
-      },
-      orderBy: [
-        { status: 'asc' },
-        { startDate: 'asc' },
-      ],
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+          orderBy: [
+            { status: 'asc' },
+            { startDate: 'asc' },
+          ],
+        });
 
-    return res.status(200).json({
-      items,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-    });
+        console.log(`Found ${reservations.length} reservations`);
+        return res.status(200).json({
+          items: reservations,
+          total: reservations.length,
+        });
+      } catch (error) {
+        console.error('Error fetching reservations:', error);
+        return res.status(500).json({ message: 'Error fetching reservations' });
+      }
+    }
+
+    return res.status(405).json({ message: 'Method not allowed' });
   } catch (error) {
-    console.error('Error fetching reservations:', error);
-    return res.status(500).json({ message: 'Error fetching reservations' });
+    console.error('Authentication error:', error);
+    return res.status(401).json({ message: 'Authentication failed' });
   }
 }

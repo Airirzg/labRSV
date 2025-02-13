@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -8,7 +8,18 @@ import 'react-toastify/dist/ReactToastify.css';
 import ReactPaginate from 'react-paginate';
 import { z } from 'zod';
 import Link from 'next/link';
-import { FiHome, FiBox, FiCalendar, FiUsers, FiMessageSquare, FiSettings, FiBell, FiUser } from 'react-icons/fi';
+import { 
+  FiHome, 
+  FiBox, 
+  FiCalendar, 
+  FiUsers, 
+  FiMessageSquare, 
+  FiSettings, 
+  FiBell, 
+  FiUser,
+  FiClock,
+  FiCheckCircle
+} from 'react-icons/fi';
 import dynamic from 'next/dynamic';
 
 const Chart = dynamic(() => import('react-apexcharts'), { ssr: false });
@@ -31,6 +42,12 @@ interface Reservation {
   };
 }
 
+interface Equipment {
+  id: string;
+  name: string;
+  status: string;
+}
+
 const statusColors = {
   PENDING: '#ffd700',
   APPROVED: '#4caf50',
@@ -48,55 +65,202 @@ export default function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [adminName, setAdminName] = useState('Admin User');
-  const [equipment, setEquipment] = useState([]);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [totalPages, setTotalPages] = useState(0);
 
+  // Add statistics state
+  const [stats, setStats] = useState({
+    totalReservations: 0,
+    pendingApprovals: 0,
+    activeReservations: 0,
+    totalEquipment: 0,
+    availableEquipment: 0,
+  });
+
   useEffect(() => {
     // Initialize SSE connection
     const eventSource = new EventSource('/api/admin/events');
+    const token = localStorage.getItem('token');
+
+    // Initial fetch of reservations and equipment
+    const fetchInitialData = async () => {
+      try {
+        setLoading(true);
+        console.log('Fetching initial data with token:', token);
+
+        const [reservationsRes, equipmentRes] = await Promise.all([
+          fetch('/api/admin/reservations', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }),
+          fetch('/api/admin/equipment', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
+        ]);
+
+        if (!reservationsRes.ok) {
+          const errorData = await reservationsRes.json();
+          throw new Error(`Failed to fetch reservations: ${errorData.message}`);
+        }
+
+        if (!equipmentRes.ok) {
+          const errorData = await equipmentRes.json();
+          throw new Error(`Failed to fetch equipment: ${errorData.message}`);
+        }
+
+        const reservationsData = await reservationsRes.json();
+        const equipmentData = await equipmentRes.json();
+
+        console.log('Fetched reservations:', reservationsData);
+        console.log('Fetched equipment:', equipmentData);
+
+        if (reservationsData.items && Array.isArray(reservationsData.items)) {
+          console.log('Setting reservations:', reservationsData.items.length);
+          setReservations(reservationsData.items);
+        } else {
+          console.warn('Invalid reservations data format:', reservationsData);
+          setReservations([]);
+        }
+
+        if (equipmentData.items && Array.isArray(equipmentData.items)) {
+          console.log('Setting equipment:', equipmentData.items.length);
+          setEquipment(equipmentData.items);
+        } else {
+          console.warn('Invalid equipment data format:', equipmentData);
+          setEquipment([]);
+        }
+
+        setLoading(false);
+        setError('');
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load dashboard data');
+        setLoading(false);
+        setReservations([]);
+        setEquipment([]);
+      }
+    };
+
+    fetchInitialData();
 
     eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setReservations(data);
+      try {
+        const data = JSON.parse(event.data);
+        console.log('SSE message received:', data);
+        if (Array.isArray(data)) {
+          setReservations(data);
+        }
+      } catch (error) {
+        console.error('Error parsing SSE data:', error);
+      }
     };
 
     eventSource.addEventListener('initial', (event) => {
-      const data = JSON.parse(event.data);
-      setReservations(data);
+      try {
+        const data = JSON.parse(event.data);
+        console.log('SSE initial data received:', data);
+        if (Array.isArray(data)) {
+          setReservations(data);
+        }
+      } catch (error) {
+        console.error('Error parsing initial data:', error);
+      }
     });
 
     eventSource.addEventListener('update', (event) => {
-      const updatedReservation = JSON.parse(event.data);
-      setReservations(prev => 
-        prev.map(res => 
-          res.id === updatedReservation.id ? updatedReservation : res
-        )
-      );
-      toast.success('Reservation updated!');
+      try {
+        const updatedReservation = JSON.parse(event.data);
+        console.log('SSE update received:', updatedReservation);
+        setReservations(prev => 
+          prev.map(res => 
+            res.id === updatedReservation.id ? updatedReservation : res
+          )
+        );
+        toast.success('Reservation updated!');
+      } catch (error) {
+        console.error('Error processing update:', error);
+      }
     });
 
-    // Fetch equipment data
-    fetch('/api/admin/equipment')
-      .then(res => res.json())
-      .then(data => setEquipment(data))
-      .catch(error => console.error('Error fetching equipment:', error));
-
-    // Fetch admin profile
-    fetch('/api/admin/profile')
-      .then(res => res.json())
-      .then(data => {
-        if (data.name) {
-          setAdminName(data.name);
-        }
-      })
-      .catch(error => console.error('Error fetching admin profile:', error));
+    eventSource.onerror = (error) => {
+      console.error('SSE Error:', error);
+      eventSource.close();
+    };
 
     return () => {
       eventSource.close();
     };
   }, []);
+
+  // Update statistics whenever reservations or equipment changes
+  useEffect(() => {
+    console.log('Updating statistics with:', {
+      reservationsCount: reservations.length,
+      equipmentCount: equipment.length
+    });
+
+    // Total Reservations
+    setStats(prev => ({
+      ...prev,
+      totalReservations: reservations.length
+    }));
+
+    // Pending Approvals
+    const pendingCount = reservations.filter(
+      reservation => reservation.status === 'PENDING'
+    ).length;
+    console.log('Pending approvals:', pendingCount);
+    setStats(prev => ({
+      ...prev,
+      pendingApprovals: pendingCount
+    }));
+
+    // Active Reservations (APPROVED and not finished)
+    const now = new Date();
+    const activeCount = reservations.filter(reservation => 
+      reservation.status === 'APPROVED' &&
+      new Date(reservation.endDate) > now
+    ).length;
+    console.log('Active reservations:', activeCount);
+    setStats(prev => ({
+      ...prev,
+      activeReservations: activeCount
+    }));
+
+    // Total Equipment
+    setStats(prev => ({
+      ...prev,
+      totalEquipment: equipment.length
+    }));
+
+    // Available Equipment (not in active reservations)
+    const activeReservationEquipmentIds = new Set(
+      reservations
+        .filter(reservation => 
+          reservation.status === 'APPROVED' &&
+          new Date(reservation.startDate) <= now &&
+          new Date(reservation.endDate) > now
+        )
+        .map(reservation => reservation.equipment?.id)
+        .filter(Boolean)
+    );
+
+    const availableCount = equipment.filter(
+      item => !activeReservationEquipmentIds.has(item.id)
+    ).length;
+    console.log('Available equipment:', availableCount);
+
+    setStats(prev => ({
+      ...prev,
+      availableEquipment: availableCount
+    }));
+
+  }, [reservations, equipment]);
 
   const handleStatusChange = async (reservationId: string, newStatus: string) => {
     try {
@@ -118,7 +282,7 @@ export default function AdminDashboard() {
 
   const calendarEvents = reservations.map((reservation) => ({
     id: reservation.id,
-    title: `${reservation.equipment.name} - ${reservation.user.name}`,
+    title: `${reservation.equipment?.name || 'Unknown'} - ${reservation.user ? `${reservation.user.firstName} ${reservation.user.lastName}` : 'Unknown'}`,
     start: reservation.startDate,
     end: reservation.endDate,
     backgroundColor: statusColors[reservation.status],
@@ -130,7 +294,7 @@ export default function AdminDashboard() {
     if (reservation.status === 'PENDING') {
       toast(
         <div>
-          <p className="mb-2">{reservation.equipment.name} reserved by {reservation.user.name}</p>
+          <p className="mb-2">{reservation.equipment?.name || 'Unknown'} reserved by {reservation.user ? `${reservation.user.firstName} ${reservation.user.lastName}` : 'Unknown'}</p>
           <p className="mb-2">From: {new Date(reservation.startDate).toLocaleString()}</p>
           <p className="mb-0">To: {new Date(reservation.endDate).toLocaleString()}</p>
           <div className="d-flex gap-2 mt-3">
@@ -154,17 +318,23 @@ export default function AdminDashboard() {
   };
 
   const filteredReservations = reservations
-    .filter((reservation) => {
-      if (filterStatus === 'all') return true;
-      return reservation.status === filterStatus;
-    })
-    .filter((reservation) => {
+    .filter(reservation => {
+      if (!searchTerm) return true;
+      
       const searchString = searchTerm.toLowerCase();
+      const userName = reservation.user ? 
+        `${reservation.user.firstName || ''} ${reservation.user.lastName || ''}`.trim() : '';
+      const equipmentName = reservation.equipment?.name || '';
+      
       return (
-        reservation.user.name.toLowerCase().includes(searchString) ||
-        reservation.equipment.name.toLowerCase().includes(searchString) ||
+        userName.toLowerCase().includes(searchString) ||
+        equipmentName.toLowerCase().includes(searchString) ||
         reservation.id.toLowerCase().includes(searchString)
       );
+    })
+    .filter(reservation => {
+      if (filterStatus === 'all') return true;
+      return reservation.status === filterStatus;
     });
 
   const handlePageChange = ({ selected }: { selected: number }) => {
@@ -240,13 +410,13 @@ export default function AdminDashboard() {
                 <div className="col-12 col-sm-6 col-xl-3">
                   <div className="card h-100 shadow-sm">
                     <div className="card-body">
-                      <div className="d-flex justify-content-between align-items-start">
+                      <div className="d-flex align-items-center justify-content-between">
                         <div>
-                          <h6 className="card-subtitle mb-1 text-muted">Total Equipment</h6>
-                          <h4 className="card-title mb-0">{equipment.length}</h4>
+                          <h6 className="text-muted mb-2">Total Reservations</h6>
+                          <h4 className="mb-0">{stats.totalReservations}</h4>
                         </div>
-                        <div className="p-2 bg-primary bg-opacity-10 rounded-3">
-                          <FiBox className="text-primary" size={24} />
+                        <div className="flex-shrink-0 text-primary">
+                          <FiCalendar size={24} />
                         </div>
                       </div>
                     </div>
@@ -256,15 +426,13 @@ export default function AdminDashboard() {
                 <div className="col-12 col-sm-6 col-xl-3">
                   <div className="card h-100 shadow-sm">
                     <div className="card-body">
-                      <div className="d-flex justify-content-between align-items-start">
+                      <div className="d-flex align-items-center justify-content-between">
                         <div>
-                          <h6 className="card-subtitle mb-1 text-muted">Active Reservations</h6>
-                          <h4 className="card-title mb-0">
-                            {reservations.filter(r => r.status === 'ONGOING').length}
-                          </h4>
+                          <h6 className="text-muted mb-2">Pending Approvals</h6>
+                          <h4 className="mb-0">{stats.pendingApprovals}</h4>
                         </div>
-                        <div className="p-2 bg-success bg-opacity-10 rounded-3">
-                          <FiCalendar className="text-success" size={24} />
+                        <div className="flex-shrink-0 text-warning">
+                          <FiClock size={24} />
                         </div>
                       </div>
                     </div>
@@ -274,15 +442,13 @@ export default function AdminDashboard() {
                 <div className="col-12 col-sm-6 col-xl-3">
                   <div className="card h-100 shadow-sm">
                     <div className="card-body">
-                      <div className="d-flex justify-content-between align-items-start">
+                      <div className="d-flex align-items-center justify-content-between">
                         <div>
-                          <h6 className="card-subtitle mb-1 text-muted">Pending Reservations</h6>
-                          <h4 className="card-title mb-0">
-                            {reservations.filter(r => r.status === 'PENDING').length}
-                          </h4>
+                          <h6 className="text-muted mb-2">Active Reservations</h6>
+                          <h4 className="mb-0">{stats.activeReservations}</h4>
                         </div>
-                        <div className="p-2 bg-warning bg-opacity-10 rounded-3">
-                          <FiCalendar className="text-warning" size={24} />
+                        <div className="flex-shrink-0 text-success">
+                          <FiCheckCircle size={24} />
                         </div>
                       </div>
                     </div>
@@ -292,15 +458,13 @@ export default function AdminDashboard() {
                 <div className="col-12 col-sm-6 col-xl-3">
                   <div className="card h-100 shadow-sm">
                     <div className="card-body">
-                      <div className="d-flex justify-content-between align-items-start">
+                      <div className="d-flex align-items-center justify-content-between">
                         <div>
-                          <h6 className="card-subtitle mb-1 text-muted">Completed Reservations</h6>
-                          <h4 className="card-title mb-0">
-                            {reservations.filter(r => r.status === 'FINISHED').length}
-                          </h4>
+                          <h6 className="text-muted mb-2">Available Equipment</h6>
+                          <h4 className="mb-0">{stats.availableEquipment} / {stats.totalEquipment}</h4>
                         </div>
-                        <div className="p-2 bg-info bg-opacity-10 rounded-3">
-                          <FiCalendar className="text-info" size={24} />
+                        <div className="flex-shrink-0 text-info">
+                          <FiBox size={24} />
                         </div>
                       </div>
                     </div>
