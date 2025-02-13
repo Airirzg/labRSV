@@ -76,6 +76,7 @@ model Equipment {
   updatedAt    DateTime      @updatedAt
   imageUrl     String?
   status       Status        @default(AVAILABLE)
+  isDeleted    Boolean       @default(false)
   category     Category      @relation(fields: [categoryId], references: [id])
   reservations Reservation[]
 }

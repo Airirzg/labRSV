@@ -1,91 +1,130 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
+import { verifyToken } from '@/utils/auth';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
+    // For POST and PUT requests, verify admin authentication
+    if (req.method === 'POST' || req.method === 'PUT') {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'No token provided' });
+      }
+
+      const token = authHeader.split(' ')[1];
+      const user = verifyToken(token);
+
+      if (!user || user.role !== 'ADMIN') {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+
     if (req.method === 'GET') {
       // Get query parameters for filtering
-      const { category, available } = req.query;
+      const { category, status, search, page = '1', limit = '10' } = req.query;
+      const pageNum = parseInt(page as string, 10);
+      const limitNum = parseInt(limit as string, 10);
+      const skip = (pageNum - 1) * limitNum;
+      
+      console.log('GET request params:', { category, status, search, page, limit }); // Debug log
       
       // Build the where clause based on filters
       const where: any = {};
       
       if (category) {
-        where.category = {
-          name: category as string
-        };
+        where.categoryId = category as string;
       }
       
-      if (available !== undefined) {
-        where.availability = available === 'true';
+      if (status) {
+        where.status = status;
       }
 
-      // Get equipment with their categories and current reservations
-      const equipment = await prisma.equipment.findMany({
-        where,
-        include: {
-          category: true,
-          reservations: {
-            where: {
-              endDate: {
-                gte: new Date()
-              }
-            },
-            orderBy: {
-              startDate: 'asc'
-            },
-            take: 1
-          }
-        },
-        orderBy: {
-          name: 'asc'
-        }
+      if (search) {
+        where.OR = [
+          { name: { contains: search as string, mode: 'insensitive' } },
+          { description: { contains: search as string, mode: 'insensitive' } },
+          { location: { contains: search as string, mode: 'insensitive' } },
+        ];
+      }
+
+      console.log('Prisma where clause:', where); // Debug log
+
+      // Get equipment with their categories
+      const [items, total] = await Promise.all([
+        prisma.equipment.findMany({
+          where,
+          include: {
+            category: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip,
+          take: limitNum,
+        }),
+        prisma.equipment.count({ where }),
+      ]);
+
+      console.log(`Found ${items.length} items out of ${total} total`); // Debug log
+
+      const response = {
+        items,
+        total,
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+      };
+
+      console.log('Sending response:', response); // Debug log
+      return res.json(response);
+    } 
+    
+    else if (req.method === 'POST') {
+      const { name, description, categoryId, location, status, availability, imageUrl } = req.body;
+
+      console.log('POST request body:', req.body); // Debug log
+
+      // Validate required fields
+      if (!name || !categoryId || !location) {
+        return res.status(400).json({ error: 'Name, category, and location are required' });
+      }
+
+      // Verify category exists
+      const category = await prisma.category.findUnique({
+        where: { id: categoryId }
       });
 
-      // Transform the data to match the frontend expectations
-      const transformedEquipment = equipment.map(item => ({
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        category: item.category.name,
-        available: item.availability && item.reservations.length === 0,
-        status: item.status,
-        location: item.location,
-        nextAvailable: item.reservations[0]?.endDate
-      }));
-
-      res.status(200).json(transformedEquipment);
-    } else if (req.method === 'POST') {
-      // Check if user is admin (implement proper auth check)
-      const { name, description, categoryId, location } = req.body;
-
-      if (!name || !categoryId) {
-        return res.status(400).json({ message: 'Name and category are required' });
+      if (!category) {
+        return res.status(400).json({ error: 'Invalid category' });
       }
 
+      // Create equipment
       const equipment = await prisma.equipment.create({
         data: {
           name,
           description,
           categoryId,
           location,
-          status: 'AVAILABLE',
-          availability: true
+          status: status || 'AVAILABLE',
+          availability: availability !== undefined ? availability : true,
+          imageUrl,
         },
         include: {
           category: true
         }
       });
 
-      res.status(201).json(equipment);
-    } else {
-      res.status(405).json({ message: 'Method not allowed' });
+      console.log('Created equipment:', equipment); // Debug log
+      return res.status(201).json(equipment);
+    }
+
+    else {
+      return res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error('Equipment API error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error in equipment API:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

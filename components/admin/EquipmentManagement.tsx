@@ -5,6 +5,7 @@ import { showToast } from '@/utils/notifications';
 import { Equipment, Category } from '@/types';
 import ReactPaginate from 'react-paginate';
 import CategoryModal from './CategoryModal'; // Assuming CategoryModal is in the same directory
+import { useAuth } from '@/context/AuthContext';
 
 interface FormData {
   name: string;
@@ -26,6 +27,7 @@ const initialFormData: FormData = {
 };
 
 const EquipmentManagement: React.FC = () => {
+  const { user } = useAuth();
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
@@ -38,6 +40,16 @@ const EquipmentManagement: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
 
+  const getAuthHeaders = (isFormData = false) => {
+    const token = localStorage.getItem('token');
+    return isFormData 
+      ? { 'Authorization': `Bearer ${token}` }
+      : {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        };
+  };
+
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (!file) return;
@@ -48,6 +60,7 @@ const EquipmentManagement: React.FC = () => {
     try {
       const response = await fetch('/api/admin/equipment/upload-image', {
         method: 'POST',
+        headers: getAuthHeaders(true),
         body: formData,
       });
 
@@ -61,7 +74,7 @@ const EquipmentManagement: React.FC = () => {
       showToast('Image uploaded successfully', 'success');
     } catch (error) {
       console.error('Error uploading image:', error);
-      showToast('Failed to upload image', 'error');
+      showToast(error instanceof Error ? error.message : 'Failed to upload image', 'error');
     }
   }, []);
 
@@ -87,23 +100,36 @@ const EquipmentManagement: React.FC = () => {
       const queryParams = new URLSearchParams({
         page: (currentPage + 1).toString(),
         limit: '10',
-        status: filter !== 'ALL' ? filter : '',
-        search: searchTerm,
+        ...(filter !== 'ALL' && { status: filter }),
+        ...(searchTerm && { search: searchTerm }),
+      }).toString();
+
+      console.log('Fetching equipment with params:', queryParams); // Debug log
+
+      const response = await fetch(`/api/equipment${queryParams ? `?${queryParams}` : ''}`, {
+        headers: getAuthHeaders()
       });
 
-      const response = await fetch(`/api/admin/equipment?${queryParams}`, {
-        credentials: 'include'
-      });
       if (!response.ok) {
-        throw new Error('Failed to fetch equipment');
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch equipment');
       }
 
       const data = await response.json();
-      setEquipment(Array.isArray(data.items) ? data.items : []);
-      setTotalPages(data.totalPages || 0);
+      console.log('Received equipment data:', data); // Debug log
+
+      if (!data.items || !Array.isArray(data.items)) {
+        console.error('Invalid equipment data format:', data);
+        setEquipment([]);
+        setTotalPages(0);
+        return;
+      }
+
+      setEquipment(data.items);
+      setTotalPages(data.totalPages || Math.ceil((data.total || 0) / 10));
     } catch (error) {
       console.error('Error fetching equipment:', error);
-      showToast('Failed to fetch equipment', 'error');
+      showToast(error instanceof Error ? error.message : 'Failed to fetch equipment', 'error');
       setEquipment([]);
       setTotalPages(0);
     } finally {
@@ -114,7 +140,7 @@ const EquipmentManagement: React.FC = () => {
   const fetchCategories = async () => {
     try {
       const response = await fetch('/api/categories', {
-        credentials: 'include'
+        headers: getAuthHeaders()
       });
       if (!response.ok) throw new Error('Failed to fetch categories');
       const data = await response.json();
@@ -130,20 +156,40 @@ const EquipmentManagement: React.FC = () => {
     e.preventDefault();
 
     try {
+      // Validate required fields
+      if (!formData.name || !formData.categoryId || !formData.location) {
+        showToast('Please fill in all required fields (name, category, and location)', 'error');
+        return;
+      }
+
       const url = selectedEquipment
-        ? `/api/admin/equipment/${selectedEquipment.id}`
-        : '/api/admin/equipment';
+        ? `/api/equipment/${selectedEquipment.id}`
+        : '/api/equipment';
       
       const method = selectedEquipment ? 'PUT' : 'POST';
 
+      console.log('Sending equipment data:', {
+        url,
+        method,
+        data: formData
+      }); // Debug log
+
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-        credentials: 'include'
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          ...formData,
+          status: formData.status || 'AVAILABLE',
+          availability: formData.availability !== undefined ? formData.availability : true,
+        })
       });
 
-      if (!response.ok) throw new Error('Failed to save equipment');
+      const data = await response.json();
+      console.log('Server response:', data); // Debug log
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save equipment');
+      }
 
       showToast(
         `Equipment ${selectedEquipment ? 'updated' : 'created'} successfully`,
@@ -155,7 +201,7 @@ const EquipmentManagement: React.FC = () => {
       fetchEquipment();
     } catch (error) {
       console.error('Error saving equipment:', error);
-      showToast('Failed to save equipment', 'error');
+      showToast(error instanceof Error ? error.message : 'Failed to save equipment', 'error');
     }
   };
 
@@ -165,7 +211,7 @@ const EquipmentManagement: React.FC = () => {
     try {
       const response = await fetch(`/api/admin/equipment/${id}`, {
         method: 'DELETE',
-        credentials: 'include'
+        headers: getAuthHeaders()
       });
 
       if (!response.ok) throw new Error('Failed to delete equipment');
