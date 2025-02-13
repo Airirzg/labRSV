@@ -4,17 +4,17 @@ import { useRouter } from 'next/router';
 interface User {
   id: string;
   email: string;
+  firstName: string;
+  lastName: string;
   role: 'USER' | 'ADMIN';
-  type?: 'individual' | 'team';
-  teamMembers?: string[];
 }
 
 interface RegistrationData {
-  type: 'individual' | 'team';
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
-  name: string;
-  members?: string[];
+  phoneNumber?: string;
 }
 
 interface AuthContextType {
@@ -35,20 +35,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is logged in
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        // In a real app, verify the token with your backend
-        const userData = JSON.parse(atob(token.split('.')[1]));
+        const payload = JSON.parse(atob(token.split('.')[1]));
         setUser({
-          id: userData.id,
-          email: userData.email,
-          role: userData.role,
-          type: userData.type,
-          teamMembers: userData.teamMembers,
+          id: payload.id,
+          email: payload.email,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          role: payload.role,
         });
       } catch (err) {
+        console.error('Error parsing token:', err);
         localStorage.removeItem('token');
       }
     }
@@ -57,53 +56,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      setError(null);
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to login');
+        throw new Error(data.message || 'Login failed');
       }
 
-      const { token, user: userData } = data;
-      localStorage.setItem('token', token);
-      setUser(userData);
-
-      // Redirect based on role
-      if (userData.role === 'ADMIN') {
-        router.push('/admin/dashboard');
-      } else {
-        router.push('/dashboard');
-      }
-    } catch (err: any) {
-      setError(err.message);
+      localStorage.setItem('token', data.token);
+      setUser(data.user);
+      setError(null);
+      router.push('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
       throw err;
     }
   };
 
   const register = async (data: RegistrationData) => {
     try {
-      setError(null);
       const response = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(data),
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to register');
+        throw new Error(responseData.message || 'Registration failed');
       }
 
-      // After successful registration, redirect to login
       router.push('/auth/login');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed');
       throw err;
     }
   };
@@ -111,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
-    router.push('/');
+    router.push('/auth/login');
   };
 
   return (

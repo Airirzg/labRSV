@@ -8,27 +8,22 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  try {
-    // Verify JWT token
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'No token provided' });
-    }
+  if (req.method === 'GET') {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      if (!token) {
+        return res.status(401).json({ message: 'No token provided' });
+      }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as { 
-      id: number;
-      type: 'individual' | 'team';
-      teamIds: number[];
-    };
-    
-    if (req.method === 'GET') {
-      // Get user's reservations including team reservations
+      const decoded = jwt.verify(token, JWT_SECRET) as { 
+        id: string;
+        email: string;
+        role: string;
+      };
+
       const reservations = await prisma.reservation.findMany({
         where: {
-          OR: [
-            { userId: decoded.id },
-            { teamId: { in: decoded.teamIds } }
-          ]
+          userId: decoded.id
         },
         include: {
           equipment: {
@@ -43,54 +38,31 @@ export default async function handler(
               lastName: true,
               email: true
             }
-          },
-          team: {
-            include: {
-              leader: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true
-                }
-              }
-            }
           }
         },
         orderBy: {
-          startDate: 'desc'
+          createdAt: 'desc'
         }
       });
 
-      // Transform the data to match frontend expectations
-      const transformedReservations = reservations.map(reservation => ({
-        id: reservation.id,
-        equipment: {
-          id: reservation.equipment.id,
-          name: reservation.equipment.name,
-          category: reservation.equipment.category.name
-        },
-        startDate: reservation.startDate,
-        endDate: reservation.endDate,
-        status: reservation.status,
-        user: reservation.user ? {
-          id: reservation.user.id,
-          name: `${reservation.user.firstName} ${reservation.user.lastName}`,
-          email: reservation.user.email
-        } : null,
-        team: reservation.team ? {
-          id: reservation.team.id,
-          name: reservation.team.teamName,
-          leader: {
-            id: reservation.team.leader.id,
-            name: `${reservation.team.leader.firstName} ${reservation.team.leader.lastName}`,
-            email: reservation.team.leader.email
-          }
-        } : null
-      }));
+      return res.status(200).json(reservations);
+    } catch (error) {
+      console.error('Error fetching reservations:', error);
+      return res.status(500).json({ message: 'Internal server error' });
+    }
+  } else if (req.method === 'POST') {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      if (!token) {
+        return res.status(401).json({ message: 'No token provided' });
+      }
 
-      res.status(200).json(transformedReservations);
-    } else if (req.method === 'POST') {
+      const decoded = jwt.verify(token, JWT_SECRET) as {
+        id: string;
+        email: string;
+        role: string;
+      };
+
       const { equipmentId, startDate, endDate, notes } = req.body;
       
       if (!equipmentId || !startDate || !endDate) {
@@ -101,7 +73,7 @@ export default async function handler(
 
       // Check if equipment exists
       const equipment = await prisma.equipment.findUnique({
-        where: { id: parseInt(equipmentId) }
+        where: { id: equipmentId }
       });
 
       if (!equipment) {
@@ -109,14 +81,14 @@ export default async function handler(
       }
 
       // Check if equipment is available
-      if (!equipment.availability) {
+      if (!equipment.availability || equipment.status !== 'AVAILABLE') {
         return res.status(400).json({ message: 'Equipment is not available for reservation' });
       }
 
       // Check for conflicting reservations
       const conflictingReservation = await prisma.reservation.findFirst({
         where: {
-          equipmentId: parseInt(equipmentId),
+          equipmentId,
           OR: [
             {
               AND: [
@@ -143,14 +115,12 @@ export default async function handler(
       // Create the reservation
       const reservation = await prisma.reservation.create({
         data: {
-          equipmentId: parseInt(equipmentId),
+          equipmentId,
+          userId: decoded.id,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
-          status: 'pending',
-          ...(decoded.type === 'individual' 
-            ? { userId: decoded.id }
-            : { teamId: decoded.teamIds[0] }
-          )
+          status: 'PENDING',
+          notes: notes || undefined
         },
         include: {
           equipment: {
@@ -165,28 +135,16 @@ export default async function handler(
               lastName: true,
               email: true
             }
-          },
-          team: {
-            include: {
-              leader: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true
-                }
-              }
-            }
           }
         }
       });
 
-      res.status(201).json(reservation);
-    } else {
-      res.status(405).json({ message: 'Method not allowed' });
+      return res.status(201).json(reservation);
+    } catch (error) {
+      console.error('Error creating reservation:', error);
+      return res.status(500).json({ message: 'Internal server error' });
     }
-  } catch (error) {
-    console.error('Reservations API error:', error);
-    res.status(500).json({ message: 'Internal server error' });
   }
+
+  return res.status(405).json({ message: 'Method not allowed' });
 }

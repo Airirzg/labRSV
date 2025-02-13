@@ -3,32 +3,33 @@ import { NextApiResponse } from 'next';
 export function initSSE(res: NextApiResponse) {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
   });
 
   const sendEvent = (data: any) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    try {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    } catch (error) {
+      console.error('Error sending SSE event:', error);
+    }
   };
-
-  const heartbeat = setInterval(() => {
-    res.write(':heartbeat\n\n');
-  }, 30000);
-
-  res.on('close', () => {
-    clearInterval(heartbeat);
-    res.end();
-  });
 
   return sendEvent;
 }
 
+type SendEventFunction = (data: any) => void;
+
 export class SSEManager {
   private static instance: SSEManager;
-  private clients: Set<(data: any) => void>;
+  private clients: Map<string, SendEventFunction>;
+  private reconnectAttempts: Map<string, number>;
+  private readonly maxReconnectAttempts = 5;
 
   private constructor() {
-    this.clients = new Set();
+    this.clients = new Map();
+    this.reconnectAttempts = new Map();
   }
 
   static getInstance() {
@@ -38,15 +39,50 @@ export class SSEManager {
     return SSEManager.instance;
   }
 
-  addClient(sendEvent: (data: any) => void) {
-    this.clients.add(sendEvent);
+  addClient(clientId: string, sendEvent: SendEventFunction) {
+    this.clients.set(clientId, sendEvent);
+    this.reconnectAttempts.set(clientId, 0);
   }
 
-  removeClient(sendEvent: (data: any) => void) {
-    this.clients.delete(sendEvent);
+  removeClient(clientId: string) {
+    this.clients.delete(clientId);
+    this.reconnectAttempts.delete(clientId);
   }
 
   broadcast(data: any) {
-    this.clients.forEach(sendEvent => sendEvent(data));
+    this.clients.forEach((sendEvent, clientId) => {
+      try {
+        sendEvent(data);
+      } catch (error) {
+        console.error(`Error broadcasting to client ${clientId}:`, error);
+        this.handleFailedBroadcast(clientId);
+      }
+    });
+  }
+
+  sendToClient(clientId: string, data: any) {
+    const sendEvent = this.clients.get(clientId);
+    if (sendEvent) {
+      try {
+        sendEvent(data);
+      } catch (error) {
+        console.error(`Error sending to client ${clientId}:`, error);
+        this.handleFailedBroadcast(clientId);
+      }
+    }
+  }
+
+  private handleFailedBroadcast(clientId: string) {
+    const attempts = (this.reconnectAttempts.get(clientId) || 0) + 1;
+    if (attempts >= this.maxReconnectAttempts) {
+      console.log(`Removing client ${clientId} after ${attempts} failed attempts`);
+      this.removeClient(clientId);
+    } else {
+      this.reconnectAttempts.set(clientId, attempts);
+    }
+  }
+
+  getConnectedClients(): number {
+    return this.clients.size;
   }
 }

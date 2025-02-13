@@ -1,88 +1,67 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import jwt from 'jsonwebtoken';
-import { User } from '@/types/user';
+import type { NextApiResponse } from 'next';
+import { prisma } from '../../../lib/prisma';
+import { withAuth, AuthenticatedRequest } from '@/middleware/api-auth';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-123';
-
-// Mock database - In production, use a real database
-const users: User[] = [
-  {
-    id: 'admin-1',
-    name: 'Admin User',
-    email: 'admin@example.com',
-    role: 'admin',
-    type: 'individual'
-  },
-  {
-    id: 'user-1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    role: 'user',
-    type: 'individual'
-  },
-  {
-    id: 'team-1',
-    name: 'Research Team Alpha',
-    email: 'team.alpha@example.com',
-    role: 'user',
-    type: 'team',
-    teamMembers: ['researcher1@example.com', 'researcher2@example.com']
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method not allowed' });
   }
-];
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
   try {
-    // Verify JWT token
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
-    const user = users.find(u => u.id === decoded.id);
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        role: true,
+        createdAt: true,
+        reservations: {
+          include: {
+            equipment: {
+              include: {
+                category: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 5 // Only get the 5 most recent reservations
+        }
+      }
+    });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (req.method === 'GET') {
-      // Return user profile with all necessary fields
-      const profile = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        type: user.type,
-        teamMembers: user.teamMembers
-      };
-      res.status(200).json(profile);
-    } else if (req.method === 'PUT') {
-      const { name, members } = req.body;
-
-      // Update user information
-      user.name = name;
-      
-      if (user.type === 'team' && members) {
-        user.teamMembers = members;
-      }
-
-      // Return updated profile
-      const updatedProfile = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        type: user.type,
-        teamMembers: user.teamMembers
-      };
-
-      res.status(200).json(updatedProfile);
-    } else {
-      res.status(405).json({ message: 'Method not allowed' });
-    }
+    return res.status(200).json({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phoneNumber: user.phoneNumber,
+      role: user.role,
+      createdAt: user.createdAt,
+      reservations: user.reservations.map(reservation => ({
+        id: reservation.id,
+        equipment: {
+          id: reservation.equipment.id,
+          name: reservation.equipment.name,
+          category: reservation.equipment.category.name
+        },
+        startDate: reservation.startDate,
+        endDate: reservation.endDate,
+        status: reservation.status
+      }))
+    });
   } catch (error) {
     console.error('Profile API error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 }
+
+export default withAuth(handler);
