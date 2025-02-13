@@ -191,6 +191,7 @@ const ReservationManagement: React.FC = () => {
 
   const handleStatusChange = async (reservationId: string, newStatus: ReservationStatus) => {
     try {
+      setIsLoading(true);
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('No authentication token found');
@@ -206,10 +207,13 @@ const ReservationManagement: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update reservation status');
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update reservation status');
       }
 
       const updatedReservation = await response.json();
+      
+      // Update local state
       setReservations(prevReservations =>
         prevReservations.map(res =>
           res.id === updatedReservation.id ? updatedReservation : res
@@ -220,6 +224,8 @@ const ReservationManagement: React.FC = () => {
     } catch (err) {
       console.error('Error updating reservation status:', err);
       showToast(err instanceof Error ? err.message : 'Failed to update status', 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
