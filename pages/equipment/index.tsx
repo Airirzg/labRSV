@@ -6,13 +6,20 @@ import Footer from '@/components/Footer';
 import Loading from '@/components/Loading';
 import SearchSidebar from '@/components/SearchSidebar';
 
+interface Category {
+  id: string;
+  name: string;
+}
+
 interface Equipment {
   id: string;
   name: string;
   description: string;
-  category: string;
-  available: boolean;
-  image: string;
+  category: Category;
+  status: string;
+  availability: boolean;
+  imageUrl: string;
+  location: string;
 }
 
 const EquipmentPage = () => {
@@ -36,12 +43,21 @@ const EquipmentPage = () => {
 
   const fetchEquipment = async () => {
     try {
+      console.log('Fetching equipment...');
       const response = await fetch('/api/equipment');
-      if (!response.ok) throw new Error('Failed to fetch equipment');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch equipment');
+      }
       const data = await response.json();
-      setEquipment(data);
-      setFilteredEquipment(data);
+      console.log('Received equipment:', data);
+      if (!data.items || !Array.isArray(data.items)) {
+        throw new Error('Invalid equipment data format');
+      }
+      setEquipment(data.items);
+      setFilteredEquipment(data.items);
     } catch (err) {
+      console.error('Error fetching equipment:', err);
       setError('Failed to load equipment. Please try again later.');
     } finally {
       setLoading(false);
@@ -55,20 +71,21 @@ const EquipmentPage = () => {
     if (searchTerm) {
       filtered = filtered.filter(item =>
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchTerm.toLowerCase())
+        item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.location.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     // Apply category filter
     if (selectedCategory) {
       filtered = filtered.filter(item =>
-        item.category === selectedCategory
+        item.category.id === selectedCategory
       );
     }
 
     // Apply availability filter
     if (showAvailableOnly) {
-      filtered = filtered.filter(item => item.available);
+      filtered = filtered.filter(item => item.availability && item.status === 'AVAILABLE');
     }
 
     setFilteredEquipment(filtered);
@@ -115,48 +132,51 @@ const EquipmentPage = () => {
             )}
 
             <div className="row g-4">
-              {filteredEquipment.map((item) => (
-                <div key={item.id} className="col-md-6 col-lg-4">
-                  <div className="card h-100 shadow-sm">
-                    <img
-                      src={item.image || '/images/equipment-placeholder.jpg'}
-                      className="card-img-top"
-                      alt={item.name}
-                      style={{ height: '200px', objectFit: 'cover' }}
-                    />
-                    <div className="card-body">
-                      <div className="d-flex justify-content-between align-items-start mb-2">
-                        <h5 className="card-title mb-0">{item.name}</h5>
-                        <span className={`badge ${item.available ? 'bg-success' : 'bg-danger'}`}>
-                          {item.available ? 'Available' : 'In Use'}
-                        </span>
-                      </div>
-                      <p className="card-text text-muted small mb-2">
-                        Category: {item.category}
-                      </p>
-                      <p className="card-text mb-3">{item.description}</p>
-                      <div className="d-flex justify-content-end">
-                        <button
-                          className="btn btn-primary"
-                          onClick={() => handleReserve(item.id)}
-                          disabled={!item.available}
-                        >
-                          {item.available ? 'Reserve' : 'Not Available'}
-                        </button>
+              {filteredEquipment.length === 0 ? (
+                <div className="col-12">
+                  <div className="alert alert-info">
+                    No equipment found matching your criteria.
+                  </div>
+                </div>
+              ) : (
+                filteredEquipment.map((item) => (
+                  <div key={item.id} className="col-md-6 col-lg-4">
+                    <div className="card h-100 shadow-sm">
+                      <img
+                        src={item.imageUrl || '/images/equipment-placeholder.jpg'}
+                        className="card-img-top"
+                        alt={item.name}
+                        style={{ height: '200px', objectFit: 'cover' }}
+                      />
+                      <div className="card-body">
+                        <div className="d-flex justify-content-between align-items-start mb-2">
+                          <h5 className="card-title mb-0">{item.name}</h5>
+                          <span className={`badge ${item.status === 'AVAILABLE' && item.availability ? 'bg-success' : 'bg-danger'}`}>
+                            {item.status === 'AVAILABLE' && item.availability ? 'Available' : 'Not Available'}
+                          </span>
+                        </div>
+                        <p className="card-text text-muted small mb-2">
+                          Category: {item.category.name}
+                        </p>
+                        <p className="card-text text-muted small mb-2">
+                          Location: {item.location}
+                        </p>
+                        <p className="card-text mb-3">{item.description}</p>
+                        <div className="d-flex justify-content-end">
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => handleReserve(item.id)}
+                            disabled={!(item.status === 'AVAILABLE' && item.availability)}
+                          >
+                            {item.status === 'AVAILABLE' && item.availability ? 'Reserve' : 'Not Available'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-
-            {filteredEquipment.length === 0 && (
-              <div className="text-center py-5">
-                <i className="bi bi-search display-1 text-muted mb-3"></i>
-                <h3>No equipment found</h3>
-                <p className="text-muted">Try adjusting your search or filters</p>
-              </div>
-            )}
           </div>
         </div>
       </main>
