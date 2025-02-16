@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { withAuth } from '@/middleware/api-auth';
+import { withAuth, AuthenticatedRequest } from '@/middleware/api-auth';
 
 const getNotificationsSchema = z.object({
   userId: z.string(),
@@ -15,11 +15,15 @@ const markAsReadSchema = z.object({
 });
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Not authenticated' });
+  }
+
   switch (req.method) {
     case 'GET':
-      return getNotifications(req, res);
+      return await getNotifications(req, res);
     case 'PUT':
-      return markAsRead(req, res);
+      return await markAsRead(req, res);
     default:
       return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -27,6 +31,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
 async function getNotifications(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
+    console.log('Request query:', req.query);
+    console.log('Authenticated user:', req.user);
+
     const validation = getNotificationsSchema.safeParse({
       ...req.query,
       page: req.query.page || '1',
@@ -35,13 +42,23 @@ async function getNotifications(req: AuthenticatedRequest, res: NextApiResponse)
     });
 
     if (!validation.success) {
-      return res.status(400).json({ message: 'Invalid request parameters', errors: validation.error.errors });
+      console.error('Validation error:', validation.error.errors);
+      return res.status(400).json({ 
+        message: 'Invalid request parameters', 
+        errors: validation.error.errors 
+      });
     }
 
     const { userId, page, limit, type } = validation.data;
+    console.log('Validated data:', { userId, page, limit, type });
 
-    // Allow both admin users and the user themselves to view their notifications
-    if (req.user?.role !== 'ADMIN' && req.user?.id !== userId) {
+    // Allow users to view their own notifications or admins to view any
+    if (req.user.id !== userId && req.user.role !== 'ADMIN') {
+      console.error('Authorization error:', {
+        requestedUserId: userId,
+        authenticatedUserId: req.user.id,
+        userRole: req.user.role
+      });
       return res.status(403).json({ message: 'Not authorized to view these notifications' });
     }
 
@@ -52,6 +69,8 @@ async function getNotifications(req: AuthenticatedRequest, res: NextApiResponse)
       userId,
       ...(type === 'UNREAD' ? { read: false } : {}),
     };
+
+    console.log('Database query:', { where, skip, take });
 
     // First get notifications
     const [notifications, total] = await Promise.all([
@@ -69,21 +88,27 @@ async function getNotifications(req: AuthenticatedRequest, res: NextApiResponse)
           type: true,
           read: true,
           createdAt: true,
-          metadata: true,
         },
       }),
       prisma.notification.count({ where }),
     ]);
+
+    console.log('Found notifications:', notifications.length);
+    console.log('Total notifications:', total);
 
     // For message notifications, fetch the associated message details
     const notificationsWithDetails = await Promise.all(
       notifications.map(async (notification) => {
         if (notification.type === 'MESSAGE') {
           try {
-            const metadata = notification.metadata ? JSON.parse(notification.metadata) : null;
-            if (metadata?.messageId) {
+            // For message notifications, try to extract message ID from the notification message
+            // This is a temporary solution until we add proper metadata support
+            const messageIdMatch = notification.message.match(/messageId:(\w+)/);
+            const messageId = messageIdMatch ? messageIdMatch[1] : null;
+            
+            if (messageId) {
               const message = await prisma.message.findUnique({
-                where: { id: metadata.messageId },
+                where: { id: messageId },
                 select: {
                   id: true,
                   subject: true,
@@ -91,13 +116,6 @@ async function getNotifications(req: AuthenticatedRequest, res: NextApiResponse)
                   senderName: true,
                   senderEmail: true,
                   createdAt: true,
-                  parent: {
-                    select: {
-                      id: true,
-                      subject: true,
-                      content: true,
-                    },
-                  },
                 },
               });
               return {
@@ -106,7 +124,7 @@ async function getNotifications(req: AuthenticatedRequest, res: NextApiResponse)
               };
             }
           } catch (error) {
-            console.error('Error parsing message metadata:', error);
+            console.error('Error processing message notification:', error);
           }
         }
         return notification;
@@ -123,8 +141,11 @@ async function getNotifications(req: AuthenticatedRequest, res: NextApiResponse)
       },
     });
   } catch (error) {
-    console.error('Error fetching notifications:', error);
-    return res.status(500).json({ message: 'Error fetching notifications' });
+    console.error('Error in getNotifications:', error);
+    return res.status(500).json({ 
+      message: 'Error fetching notifications',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 }
 
@@ -132,13 +153,16 @@ async function markAsRead(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
     const validation = markAsReadSchema.safeParse(req.body);
     if (!validation.success) {
-      return res.status(400).json({ message: 'Invalid request parameters', errors: validation.error.errors });
+      return res.status(400).json({ 
+        message: 'Invalid request parameters', 
+        errors: validation.error.errors 
+      });
     }
 
     const { notificationIds } = validation.data;
 
     // If not admin, verify user owns these notifications
-    if (req.user?.role !== 'ADMIN') {
+    if (req.user.role !== 'ADMIN') {
       const notifications = await prisma.notification.findMany({
         where: {
           id: { in: notificationIds },
@@ -148,7 +172,7 @@ async function markAsRead(req: AuthenticatedRequest, res: NextApiResponse) {
         },
       });
 
-      const hasUnauthorizedAccess = notifications.some(n => n.userId !== req.user?.id);
+      const hasUnauthorizedAccess = notifications.some(n => n.userId !== req.user.id);
       if (hasUnauthorizedAccess) {
         return res.status(403).json({ message: 'Not authorized to mark these notifications as read' });
       }

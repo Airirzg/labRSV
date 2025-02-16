@@ -1,85 +1,58 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
-import { getSession } from 'next-auth/react';
+import { prisma } from '@/lib/prisma';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
+
   try {
-    const session = await getSession({ req });
-
-    if (!session || session.user.role !== 'ADMIN') {
-      return res.status(401).json({ message: 'Unauthorized' });
+    // Verify JWT token
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' });
     }
 
-    if (req.method !== 'GET') {
-      return res.status(405).json({ message: 'Method not allowed' });
-    }
-
-    const page = parseInt(req.query.page as string) || 0;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const search = (req.query.search as string) || '';
-    const status = (req.query.status as string) || '';
-
-    // Calculate skip value for pagination
-    const skip = page * limit;
-
-    // Build the where clause for search and filter
-    const where = {
-      AND: [
-        search
-          ? {
-              OR: [
-                { subject: { contains: search, mode: 'insensitive' } },
-                { content: { contains: search, mode: 'insensitive' } },
-                { senderName: { contains: search, mode: 'insensitive' } },
-                { senderEmail: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {},
-        status ? { status } : {},
-      ],
+    const decoded = jwt.verify(token, JWT_SECRET) as {
+      id: string;
+      email: string;
+      role: string;
     };
 
-    // Get total count for pagination
-    const total = await prisma.message.count({ where });
-
-    // If there are no messages, return empty result
-    if (total === 0) {
-      return res.status(200).json({
-        items: [],
-        totalPages: 0,
-        currentPage: 0,
-        totalItems: 0,
-      });
+    if (decoded.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // Get messages with pagination, search, and filter
-    const messages = await prisma.message.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        subject: true,
-        content: true,
-        senderName: true,
-        senderEmail: true,
-        status: true,
-        createdAt: true,
-      },
-    });
+    // Simple query first to test database connection
+    try {
+      const messages = await prisma.message.findMany({
+        take: 10,
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
 
-    // Calculate total pages
-    const totalPages = Math.ceil(total / limit);
-
-    return res.status(200).json({
-      items: messages,
-      totalPages,
-      currentPage: page,
-      totalItems: total,
-    });
+      return res.status(200).json({
+        items: messages,
+        totalPages: 1,
+        currentPage: 0,
+        totalItems: messages.length
+      });
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      return res.status(500).json({
+        message: 'Database error',
+        error: dbError instanceof Error ? dbError.message : 'Unknown database error'
+      });
+    }
   } catch (error) {
-    console.error('Error fetching messages:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    console.error('API error:', error);
+    return res.status(500).json({
+      message: 'Internal server error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 }

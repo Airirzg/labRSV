@@ -88,10 +88,49 @@ const EquipmentManagement: React.FC = () => {
   });
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('Authentication required', 'error');
+      return;
+    }
+
+    // Set up SSE connection
+    const eventSource = new EventSource(`/api/admin/sse?token=${encodeURIComponent(token)}`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'reservationUpdate' && data.reservation.equipment) {
+          // Refresh equipment list when a reservation is updated
+          fetchEquipment();
+        }
+      } catch (error) {
+        console.error('Error processing SSE message:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE Error:', error);
+      eventSource.close();
+    };
+
+    const handleRefreshEquipment = () => {
+      fetchEquipment();
+    };
+
+    window.addEventListener('refreshEquipment', handleRefreshEquipment);
+
+    // Initial data fetch
     Promise.all([fetchEquipment(), fetchCategories()]).catch(error => {
       console.error('Error initializing data:', error);
       showToast('Failed to load initial data', 'error');
     });
+
+    // Cleanup
+    return () => {
+      eventSource.close();
+      window.removeEventListener('refreshEquipment', handleRefreshEquipment);
+    };
   }, [currentPage, filter, searchTerm]);
 
   const fetchEquipment = async () => {

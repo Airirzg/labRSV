@@ -38,11 +38,15 @@ const ReservationForm = ({ onSubmit }: ReservationFormProps) => {
       return;
     }
 
+    // Format dates to match the server's expected format
+    const formattedStartDate = startDate.toISOString();
+    const formattedEndDate = endDate.toISOString();
+
     const reservationData: ReservationData = {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      notes,
-      status: 'pending',
+      startDate: formattedStartDate,
+      endDate: formattedEndDate,
+      notes: notes || '',
+      status: 'PENDING', // Match the server's enum case
     };
 
     try {
@@ -50,7 +54,7 @@ const ReservationForm = ({ onSubmit }: ReservationFormProps) => {
       if (onSubmit) {
         await onSubmit(reservationData);
       }
-      
+
       dispatch(addReservation({
         id: Date.now(), // Temporary ID for demo
         ...reservationData,
@@ -63,6 +67,7 @@ const ReservationForm = ({ onSubmit }: ReservationFormProps) => {
       setNotes('');
     } catch (err) {
       setError('Failed to create reservation. Please try again.');
+      console.error('Reservation error:', err);
     }
   };
 

@@ -530,7 +530,6 @@ export default function AdminDashboard() {
                           <th>Start Time</th>
                           <th>End Time</th>
                           <th>Status</th>
-                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>

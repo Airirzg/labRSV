@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Loading from '@/components/Loading';
 import ErrorMessage from '@/components/ErrorMessage';
+import { showToast } from '@/utils/notifications';
 
 interface Equipment {
   id: string;
@@ -50,6 +51,22 @@ const CreateReservation = () => {
   const handleReservationSubmit = async (data: any) => {
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      if (!equipment) {
+        throw new Error('Equipment details not loaded');
+      }
+
+      // Log the data being sent
+      console.log('Submitting reservation with data:', {
+        equipmentId: equipment.id,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        notes: data.notes
+      });
+
       const response = await fetch('/api/reservations', {
         method: 'POST',
         headers: {
@@ -57,20 +74,32 @@ const CreateReservation = () => {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          equipmentId,
-          userId: user?.id,
-          ...data,
+          equipmentId: equipment.id,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          notes: data.notes || '',
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create reservation');
+        const errorData = await response.json();
+        console.error('Server response:', errorData);
+        throw new Error(errorData.message || 'Failed to create reservation');
       }
+
+      const result = await response.json();
+      console.log('Reservation created:', result);
+
+      // Show success message
+      showToast('Reservation created successfully', 'success');
 
       // Redirect to dashboard after successful reservation
       router.push('/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create reservation');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create reservation';
+      console.error('Reservation error:', err);
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
     }
   };
 

@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Loading from '@/components/Loading';
 import SearchSidebar from '@/components/SearchSidebar';
+import { Status } from '@prisma/client';
 
 interface Category {
   id: string;
@@ -16,11 +17,23 @@ interface Equipment {
   name: string;
   description: string;
   category: Category;
-  status: string;
+  status: Status;
   availability: boolean;
   imageUrl: string;
   location: string;
 }
+
+const statusColors: Record<Status, string> = {
+  AVAILABLE: 'bg-success',
+  IN_USE: 'bg-warning',
+  MAINTENANCE: 'bg-danger',
+};
+
+const statusLabels: Record<Status, string> = {
+  AVAILABLE: 'Available',
+  IN_USE: 'In Use',
+  MAINTENANCE: 'Under Maintenance',
+};
 
 const EquipmentPage = () => {
   const { user } = useAuth();
@@ -58,7 +71,7 @@ const EquipmentPage = () => {
       setFilteredEquipment(data.items);
     } catch (err) {
       console.error('Error fetching equipment:', err);
-      setError('Failed to load equipment. Please try again later.');
+      setError(err instanceof Error ? err.message : 'Failed to load equipment');
     } finally {
       setLoading(false);
     }
@@ -69,10 +82,11 @@ const EquipmentPage = () => {
 
     // Apply search filter
     if (searchTerm) {
+      const term = searchTerm.toLowerCase();
       filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.location.toLowerCase().includes(searchTerm.toLowerCase())
+        item.name.toLowerCase().includes(term) ||
+        item.description.toLowerCase().includes(term) ||
+        item.location.toLowerCase().includes(term)
       );
     }
 
@@ -85,18 +99,10 @@ const EquipmentPage = () => {
 
     // Apply availability filter
     if (showAvailableOnly) {
-      filtered = filtered.filter(item => item.availability && item.status === 'AVAILABLE');
+      filtered = filtered.filter(item => item.status === 'AVAILABLE');
     }
 
     setFilteredEquipment(filtered);
-  };
-
-  const handleReserve = (equipmentId: string) => {
-    if (!user) {
-      router.push('/auth/login');
-      return;
-    }
-    router.push(`/reservations/create?equipmentId=${equipmentId}`);
   };
 
   if (loading) return (
@@ -104,6 +110,16 @@ const EquipmentPage = () => {
       <Navbar />
       <main className="container py-4">
         <Loading />
+      </main>
+      <Footer />
+    </div>
+  );
+
+  if (error) return (
+    <div className="min-h-screen bg-light">
+      <Navbar />
+      <main className="container py-4">
+        <div className="text-center text-danger mt-5">{error}</div>
       </main>
       <Footer />
     </div>
@@ -117,9 +133,12 @@ const EquipmentPage = () => {
           {/* Search Sidebar */}
           <div className="col-lg-3">
             <SearchSidebar
-              onSearch={setSearchTerm}
-              onCategoryFilter={setSelectedCategory}
-              onAvailabilityFilter={setShowAvailableOnly}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              selectedCategory={selectedCategory}
+              setSelectedCategory={setSelectedCategory}
+              showAvailableOnly={showAvailableOnly}
+              setShowAvailableOnly={setShowAvailableOnly}
             />
           </div>
 
@@ -142,35 +161,38 @@ const EquipmentPage = () => {
                 filteredEquipment.map((item) => (
                   <div key={item.id} className="col-md-6 col-lg-4">
                     <div className="card h-100 shadow-sm">
-                      <img
-                        src={item.imageUrl || '/images/equipment-placeholder.jpg'}
-                        className="card-img-top"
-                        alt={item.name}
-                        style={{ height: '200px', objectFit: 'cover' }}
-                      />
+                      {item.imageUrl && (
+                        <img
+                          src={item.imageUrl}
+                          className="card-img-top"
+                          alt={item.name}
+                          style={{ height: '200px', objectFit: 'cover' }}
+                        />
+                      )}
                       <div className="card-body">
                         <div className="d-flex justify-content-between align-items-start mb-2">
                           <h5 className="card-title mb-0">{item.name}</h5>
-                          <span className={`badge ${item.status === 'AVAILABLE' && item.availability ? 'bg-success' : 'bg-danger'}`}>
-                            {item.status === 'AVAILABLE' && item.availability ? 'Available' : 'Not Available'}
+                          <span className={`badge ${statusColors[item.status]} text-white`}>
+                            {statusLabels[item.status]}
                           </span>
                         </div>
                         <p className="card-text text-muted small mb-2">
                           Category: {item.category.name}
                         </p>
-                        <p className="card-text text-muted small mb-2">
-                          Location: {item.location}
+                        <p className="card-text">{item.description}</p>
+                        <p className="card-text small">
+                          <i className="bi bi-geo-alt-fill me-1"></i>
+                          {item.location}
                         </p>
-                        <p className="card-text mb-3">{item.description}</p>
-                        <div className="d-flex justify-content-end">
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => handleReserve(item.id)}
-                            disabled={!(item.status === 'AVAILABLE' && item.availability)}
-                          >
-                            {item.status === 'AVAILABLE' && item.availability ? 'Reserve' : 'Not Available'}
-                          </button>
-                        </div>
+                      </div>
+                      <div className="card-footer bg-transparent">
+                        <button
+                          className="btn btn-primary w-100"
+                          onClick={() => router.push(`/reservations/create?equipmentId=${item.id}`)}
+                          disabled={item.status !== 'AVAILABLE'}
+                        >
+                          {item.status === 'AVAILABLE' ? 'Reserve Now' : 'Not Available'}
+                        </button>
                       </div>
                     </div>
                   </div>

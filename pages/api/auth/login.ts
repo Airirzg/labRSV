@@ -66,6 +66,8 @@ export default async function handler(
       {
         id: user.id,
         email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
         type,
         role: user.role,
         teamIds: user.teamMembers.map(membership => membership.team.id)

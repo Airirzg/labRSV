@@ -5,118 +5,169 @@
 ### 1. Core Application Structure
 ```
 LabRES-main/
-├── pages/         # Routes and API endpoints
-├── components/    # Reusable UI components
-├── prisma/       # Database schema and migrations
-├── context/      # React context providers
-├── store/        # State management (Redux)
-├── lib/          # Utility libraries
-├── utils/        # Helper functions
-└── public/       # Static assets
+├── pages/                 # Routes and API endpoints
+│   ├── admin/            # Admin dashboard and management
+│   ├── api/              # API routes
+│   ├── auth/             # Authentication pages
+│   ├── dashboard/        # User dashboard
+│   ├── equipment/        # Equipment catalog
+│   └── reservations/     # Reservation management
+├── components/           # Reusable UI components
+│   ├── admin/           # Admin-specific components
+│   └── home/            # Homepage components
+├── prisma/              # Database schema and migrations
+├── context/             # React context providers
+├── lib/                 # Core libraries
+├── middleware/          # Authentication middleware
+├── store/               # Redux store and slices
+├── utils/               # Helper functions
+└── public/              # Static assets
 ```
 
-### 2. Database Models
+### 2. Key Features and Components
 
-#### Equipment Model
-- `id`: Unique identifier
-- `name`: Name of the equipment
-- `description`: Description of the equipment
-- `imageUrl`: URL to equipment image
-- `status`: AVAILABLE, MAINTENANCE, or IN_USE
-- `location`: Location of the equipment
-- `categoryId`: Links to a category
-- `availability`: Boolean flag for availability
+#### Authentication System
+- **Context**: `context/AuthContext.tsx`
+  - Manages user authentication state
+  - Provides login/logout functionality
+  - JWT token management
+  - Role-based access control
 
-#### Reservation Model
-- `id`: Unique identifier
-- `userId`: User making the reservation (optional)
-- `teamId`: Team making the reservation (optional)
-- `equipmentId`: Equipment being reserved
-- `startDate`: Start time of reservation
-- `endDate`: End time of reservation
-- `status`: PENDING, APPROVED, REJECTED, ONGOING, or FINISHED
+#### Admin Features
+- **Dashboard**: `pages/admin/dashboard.tsx`
+  - Statistics and analytics
+  - Equipment overview
+  - Recent reservations
+  
+- **Equipment Management**: `components/admin/EquipmentManagement.tsx`
+  - CRUD operations
+  - Category management
+  - Status tracking
 
-#### User Roles
-- `USER`: Regular users who can make reservations
-- `ADMIN`: Administrators who can manage equipment and reservations
+- **Message System**: `components/admin/MessageManagement.tsx`
+  - User messages
+  - Reply functionality
+  - Notification system
 
-### 3. Directory Structure Details
+#### User Features
+- **Profile**: `pages/dashboard/profile.tsx`
+  - User information
+  - Reservation history
+  - Notifications
+  
+- **Equipment**: `pages/equipment/index.tsx`
+  - Equipment catalog
+  - Search and filters
+  - Availability status
 
-#### Pages Directory (`/pages`)
-- `_app.tsx`: Root component that wraps all pages
-- `index.tsx`: Homepage
-- `/api/*`: Backend API endpoints
-- `/admin/*`: Admin dashboard pages
-- `/auth/*`: Authentication pages
-- `/equipment/*`: Equipment management pages
-- `/reservations/*`: Reservation management pages
+- **Reservations**: `pages/reservations/create.tsx`
+  - Equipment booking
+  - Date selection
+  - Confirmation process
 
-#### Components Directory (`/components`)
-##### Shared Components
-- `Navbar.tsx`: Global navigation
-- `Footer.tsx`: Global footer
-- `Loading.tsx`: Loading state component
-- `ErrorMessage.tsx`: Error display component
-- `SearchSidebar.tsx`: Filtering sidebar
+### 3. API Structure
 
-##### Feature-specific Components
-- `EquipmentTable.tsx`: Equipment listing
-- `ReservationForm.tsx`: Reservation creation/editing
-- `ProfileForm.tsx`: User profile management
-
-### 4. Data Flow Relationships
-
-#### Frontend to Backend Flow
+#### Admin APIs
 ```
-pages/equipment/index.tsx
-        ↓
-api/equipment/index.ts
-        ↓
-prisma/schema.prisma
+/api/admin/
+├── equipment/          # Equipment management
+├── messages/          # Message system
+├── notifications/     # Notification handling
+├── profile/          # Admin profile
+├── reservations/     # Reservation management
+└── users/            # User management
 ```
 
-#### Authentication Flow
+#### Public APIs
 ```
-components/Navbar.tsx
-        ↓
-context/AuthContext.tsx
-        ↓
-pages/api/auth/[...nextauth].ts
+/api/
+├── auth/             # Authentication endpoints
+├── equipment/        # Public equipment endpoints
+├── notifications/    # User notifications
+└── reservations/    # Reservation endpoints
 ```
 
-#### State Management
+### 4. Component Structure
+
+#### Shared Components
+```
+components/
+├── ErrorBoundary.tsx    # Error handling
+├── ErrorMessage.tsx     # Error display
+├── Footer.tsx          # Global footer
+├── Loading.tsx         # Loading states
+├── Navbar.tsx          # Navigation
+├── ProfileForm.tsx     # Profile editing
+├── ReservationForm.tsx # Reservation creation
+└── SearchSidebar.tsx   # Search interface
+```
+
+#### Admin Components
+```
+components/admin/
+├── CategoryModal.tsx         # Category management
+├── EquipmentManagement.tsx  # Equipment CRUD
+├── MessageManagement.tsx    # Message handling
+├── ReservationManagement.tsx # Reservation management
+└── UserManagement.tsx       # User administration
+```
+
+### 5. Utility Functions
+
+#### Core Utilities
+```
+utils/
+├── api.ts           # API helpers
+├── auth.ts          # Authentication utilities
+├── email.ts         # Email functionality
+├── notifications.ts # Notification system
+├── s3.ts           # File storage
+└── sse.ts          # Server-sent events
+```
+
+### 6. State Management
+
+#### Redux Store
 ```
 store/
-├── slices/        # Redux slices for different features
-└── index.ts       # Root store configuration
+├── slices/          # Redux slices
+│   ├── authSlice.ts    # Authentication state
+│   └── reservationSlice.ts # Reservation state
+└── store.ts         # Store configuration
 ```
 
-### 5. API Structure (`/pages/api`)
-- `/admin/*`: Administrative endpoints
-- `/auth/*`: Authentication endpoints
-- `/equipment/*`: Equipment management
-- `/reservations/*`: Reservation handling
-- `/users/*`: User management
+### 7. Real-time Features
 
-### 6. Database Management (`/prisma`)
-```
-prisma/
-├── schema.prisma      # Database schema
-├── migrations/        # Database migrations
-└── seed.ts           # Seed data
-```
+#### Notification System
+- **Server**: `utils/notifications.ts`
+  - Creates notifications
+  - Manages notification state
+  - Sends real-time updates
 
-### 7. Key File Dependencies
+- **Client**: `pages/dashboard/profile.tsx`
+  - Displays notifications
+  - Handles real-time updates
+  - Manages notification state
 
-#### Equipment Management Flow
+#### Server-Sent Events
+- **Manager**: `utils/sse.ts`
+  - Manages SSE connections
+  - Handles event dispatch
+  - Connection recovery
+
+### 8. Data Flow Examples
+
+#### Message Reply Flow
 ```
-pages/equipment/index.tsx
+components/admin/MessageManagement.tsx
         ↓
-components/EquipmentTable.tsx
+pages/api/admin/messages/reply.ts
         ↓
-api/equipment/[id].ts
+utils/notifications.ts (Create notification)
         ↓
-prisma/schema.prisma (Equipment model)
+utils/sse.ts (Send real-time update)
+        ↓
+pages/dashboard/profile.tsx (Update UI)
 ```
 
 #### Reservation Flow
@@ -125,85 +176,48 @@ pages/reservations/create.tsx
         ↓
 components/ReservationForm.tsx
         ↓
-api/reservations/index.ts
+pages/api/reservations/index.ts
         ↓
-prisma/schema.prisma (Reservation model)
+utils/notifications.ts (Notify admin)
+        ↓
+components/admin/ReservationManagement.tsx
 ```
 
-#### Authentication Flow
-```
-pages/auth/login.tsx
-        ↓
-context/AuthContext.tsx
-        ↓
-api/auth/[...nextauth].ts
-        ↓
-prisma/schema.prisma (User model)
-```
+### 9. Security Features
 
-### 8. Technologies Used
-- Next.js: React framework for routing and API
-- Prisma: Database ORM
-- PostgreSQL: Database
-- Redux: State management
-- NextAuth.js: Authentication
-- TypeScript: Type safety
-- React: UI library
+#### Authentication
+- JWT-based authentication
+- Role-based access control
+- Secure password hashing
+- Protected API routes
 
-### 9. Features
-1. Equipment Management
-   - Browse equipment
-   - Filter by category
-   - Search functionality
-   - Availability tracking
-
-2. Reservation System
-   - Create reservations
-   - Manage bookings
-   - Team-based reservations
-   - Status tracking
-
-3. User Management
-   - Authentication
-   - Role-based access
-   - Profile management
-   - Team management
-
-4. Notification System
-   - Reservation updates
-   - Equipment status changes
-   - System notifications
+#### API Security
+- Request validation with Zod
+- CORS protection
+- Rate limiting
+- Error handling
 
 ### 10. Development Guidelines
-1. File Naming:
-   - Use PascalCase for components
-   - Use camelCase for utilities and hooks
-   - Use kebab-case for CSS files
 
-2. Code Organization:
-   - Keep components modular
-   - Use TypeScript interfaces
-   - Follow Next.js conventions
-   - Implement proper error handling
+#### Code Organization
+- Feature-based component structure
+- Shared utilities in utils/
+- Type safety with TypeScript
+- Consistent error handling
 
-3. State Management:
-   - Use Redux for global state
-   - Use React Context for auth
-   - Use local state for component-specific data
+#### State Management
+- Redux for global state
+- React Context for auth
+- Local state when appropriate
+- SSE for real-time updates
 
-4. API Guidelines:
-   - RESTful endpoints
-   - Proper error responses
-   - Input validation
-   - Authentication middleware
+#### Error Handling
+- Global error boundary
+- Consistent error responses
+- Form validation
+- Loading states
 
-### 11. Environment Setup
-Required environment variables:
-```
-DATABASE_URL="postgresql://username:password@localhost:5432/your_database_name"
-```
-
-### 12. Getting Started
+### 11. Getting Started
 1. Install dependencies:
    ```bash
    npm install
@@ -221,3 +235,194 @@ DATABASE_URL="postgresql://username:password@localhost:5432/your_database_name"
    ```
 
 4. Access the application at `http://localhost:3000`
+
+### 12. Environment Setup
+```env
+DATABASE_URL=postgresql://username:password@localhost:5432/your_database_name
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-secret-key
+```
+
+### 13. File Relationships and Data Flow
+
+#### Admin Dashboard Flow
+```
+pages/admin/dashboard.tsx
+        ↓
+components/admin/ReservationManagement.tsx
+components/admin/EquipmentManagement.tsx
+        ↓
+api/admin/reservations/index.ts
+api/admin/equipment/index.ts
+api/admin/events.ts (SSE)
+        ↓
+lib/prisma.ts
+        ↓
+prisma/schema.prisma (Equipment & Reservation models)
+```
+
+#### Equipment Management Flow
+```
+pages/admin/equipment.tsx
+        ↓
+components/admin/EquipmentManagement.tsx
+components/admin/CategoryModal.tsx
+        ↓
+api/admin/equipment/[id].ts
+api/admin/equipment/index.ts
+api/admin/categories/index.ts
+        ↓
+lib/prisma.ts
+        ↓
+prisma/schema.prisma (Equipment & Category models)
+```
+
+#### Reservation System Flow
+```
+pages/reservations/create.tsx
+        ↓
+components/ReservationForm.tsx
+components/EquipmentTable.tsx
+        ↓
+api/reservations/index.ts
+api/equipment/index.ts
+        ↓
+lib/prisma.ts
+        ↓
+prisma/schema.prisma (Reservation & Equipment models)
+```
+
+#### Authentication Flow
+```
+pages/_app.tsx
+        ↓
+context/AuthContext.tsx
+middleware/auth.tsx
+        ↓
+api/auth/[...nextauth].ts
+middleware/api-auth.ts
+        ↓
+lib/prisma.ts
+        ↓
+prisma/schema.prisma (User model)
+```
+
+#### Real-time Updates Flow
+```
+api/admin/events.ts (SSE Server)
+        ↓
+pages/admin/dashboard.tsx (SSE Client)
+        ↓
+components/admin/ReservationManagement.tsx
+components/admin/EquipmentManagement.tsx
+        ↓
+Database Updates via Prisma
+```
+
+#### User Management Flow
+```
+pages/admin/users.tsx
+        ↓
+components/admin/UserManagement.tsx
+components/ProfileForm.tsx
+        ↓
+api/admin/users/index.ts
+api/admin/users/[id].ts
+        ↓
+lib/prisma.ts
+        ↓
+prisma/schema.prisma (User model)
+```
+
+#### Public Equipment Browsing Flow
+```
+pages/equipment/index.tsx
+        ↓
+components/EquipmentTable.tsx
+components/SearchSidebar.tsx
+        ↓
+api/equipment/index.ts
+api/equipment/[id].ts
+        ↓
+lib/prisma.ts
+        ↓
+prisma/schema.prisma (Equipment model)
+```
+
+### Key Dependencies Between Components:
+
+1. **Dashboard Dependencies**:
+   - ReservationManagement ↔ EquipmentManagement (shared state)
+   - Dashboard ↔ Events API (real-time updates)
+   - Statistics Cards ↔ Prisma Queries (data aggregation)
+
+2. **Equipment Dependencies**:
+   - EquipmentTable ↔ SearchSidebar (filtering)
+   - EquipmentManagement ↔ CategoryModal (category assignment)
+   - Equipment API ↔ Reservation API (availability checks)
+
+3. **Reservation Dependencies**:
+   - ReservationForm ↔ EquipmentTable (equipment selection)
+   - Reservation API ↔ Equipment API (validation)
+   - ReservationManagement ↔ Events API (status updates)
+
+4. **Authentication Dependencies**:
+   - AuthContext ↔ API Routes (token management)
+   - Middleware ↔ AuthContext (route protection)
+   - User API ↔ Auth API (profile management)
+
+### Data Flow Patterns:
+
+1. **UI Updates**:
+   ```
+   User Action → Component State → API Call → Database Update → SSE Event → UI Update
+   ```
+
+2. **Authentication**:
+   ```
+   Login Form → AuthContext → API Route → Token Generation → Local Storage → Protected Routes
+   ```
+
+3. **Real-time Updates**:
+   ```
+   Database Change → SSE Event → Client Listener → State Update → UI Refresh
+   ```
+
+4. **Form Submissions**:
+   ```
+   Form Component → Validation → API Call → Database Update → Response → UI Update
+   ```
+
+### 14. Database Schema
+
+#### Equipment Model
+```prisma
+model Equipment {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  status      Status        @default(AVAILABLE)
+  location    String
+  categoryId  String
+  category    Category      @relation(fields: [categoryId], references: [id])
+  reservations Reservation[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+```
+
+#### Reservation Model
+```prisma
+model Reservation {
+  id          String      @id @default(cuid())
+  userId      String
+  equipmentId String
+  startDate   DateTime
+  endDate     DateTime
+  status      ResStatus   @default(PENDING)
+  user        User        @relation(fields: [userId], references: [id])
+  equipment   Equipment   @relation(fields: [equipmentId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+```

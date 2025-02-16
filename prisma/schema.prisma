@@ -20,6 +20,7 @@ model User {
   notifications Notification[]
   reservations  Reservation[]
   teamMembers   TeamMember[]
+  messages      Message[]
 }
 
 model Team {
@@ -93,17 +94,18 @@ model Category {
 
 model Reservation {
   id          String            @id @default(cuid())
-  userId      String?
-  teamId      String?
-  equipmentId String
   startDate   DateTime
   endDate     DateTime
+  status      ReservationStatus @default(PENDING)
+  notes       String            @default("")
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
-  status      ReservationStatus @default(PENDING)
+  userId      String
+  user        User              @relation(fields: [userId], references: [id])
+  equipmentId String
   equipment   Equipment         @relation(fields: [equipmentId], references: [id])
+  teamId      String?
   team        Team?             @relation(fields: [teamId], references: [id])
-  user        User?             @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([teamId])
@@ -123,14 +125,22 @@ model Notification {
 }
 
 model Message {
-  id          String        @id @default(cuid())
-  subject     String
-  content     String
-  senderName  String
-  senderEmail String
-  status      MessageStatus @default(UNREAD)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id            String        @id @default(cuid())
+  subject       String
+  content       String
+  senderName    String
+  senderEmail   String
+  status        MessageStatus @default(UNREAD)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  userId        String?
+  user          User?         @relation(fields: [userId], references: [id])
+  parentId      String?       // Field to store the ID of the parent message
+  parent        Message?      @relation("MessageThread", fields: [parentId], references: [id], onDelete: SetNull)
+  replies       Message[]     @relation("MessageThread")
+
+  @@index([userId])
+  @@index([parentId])
 }
 
 enum Role {
@@ -156,6 +166,7 @@ enum NotificationType {
   RESERVATION_UPDATE
   EQUIPMENT_UPDATE
   SYSTEM
+  MESSAGE
 }
 
 enum MessageStatus {

@@ -197,6 +197,7 @@ const ReservationManagement: React.FC = () => {
         throw new Error('No authentication token found');
       }
 
+      // Update reservation status
       const response = await fetch(`/api/admin/reservations/${reservationId}`, {
         method: 'PATCH',
         headers: {
@@ -221,6 +222,7 @@ const ReservationManagement: React.FC = () => {
       );
 
       showToast(`Reservation status updated to ${newStatus}`, 'success');
+      
     } catch (err) {
       console.error('Error updating reservation status:', err);
       showToast(err instanceof Error ? err.message : 'Failed to update status', 'error');

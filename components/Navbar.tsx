@@ -2,7 +2,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/context/AuthContext';
 
-const Navbar = () => {
+interface NavbarProps {
+  children?: React.ReactNode;
+}
+
+const Navbar: React.FC<NavbarProps> = ({ children }) => {
   const router = useRouter();
   const { user, logout: handleLogout } = useAuth();
 
@@ -67,6 +71,9 @@ const Navbar = () => {
                     >
                       Logout
                     </button>
+                  </li>
+                  <li className="nav-item">
+                    {children}
                   </li>
                 </>
               ) : (

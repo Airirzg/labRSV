@@ -17,6 +17,7 @@ export const sendEmail = async (to: string, subject: string, text: string) => {
     }
   } catch (error) {
     console.error('Failed to send email:', error);
+    throw error;
   }
 };
 
@@ -24,19 +25,39 @@ export const createNotification = async (
   userId: string,
   title: string,
   message: string,
-  type: NotificationType
+  type: NotificationType,
+  metadata?: Record<string, any>
 ) => {
   try {
-    await prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         userId,
         title,
         message,
         type,
+        metadata: metadata ? JSON.stringify(metadata) : null,
       },
     });
+
+    // Emit server-sent event for real-time notifications
+    const eventData = {
+      type: 'NOTIFICATION',
+      data: notification,
+    };
+
+    // Send SSE event through the admin events endpoint
+    await fetch('/api/admin/events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(eventData),
+    });
+
+    return notification;
   } catch (error) {
     console.error('Failed to create notification:', error);
+    throw error;
   }
 };
 
@@ -49,4 +70,19 @@ export const showToast = (message: string, type: 'success' | 'error' | 'info' = 
     pauseOnHover: true,
     draggable: true,
   });
+};
+
+export const getUnreadNotificationCount = async (userId: string): Promise<number> => {
+  try {
+    const count = await prisma.notification.count({
+      where: {
+        userId,
+        read: false,
+      },
+    });
+    return count;
+  } catch (error) {
+    console.error('Failed to get unread notification count:', error);
+    return 0;
+  }
 };

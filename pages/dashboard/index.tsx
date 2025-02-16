@@ -11,6 +11,10 @@ interface Reservation {
   endDate: string;
   status: 'pending' | 'approved' | 'rejected';
   notes?: string;
+  equipment?: {
+    id: number;
+    name: string;
+  };
 }
 
 const Dashboard = () => {
@@ -61,6 +65,71 @@ const Dashboard = () => {
         return 'bg-danger';
       default:
         return 'bg-warning';
+    }
+  };
+
+  const handleAddNote = async (reservationId: number, note: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      // Update the reservation with the note
+      const updateResponse = await fetch(`/api/reservations/${reservationId}/notes`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ notes: note }),
+      });
+
+      if (!updateResponse.ok) {
+        throw new Error('Failed to update reservation note');
+      }
+
+      const updatedReservation = await updateResponse.json();
+
+      // Create a message for the admin
+      const messageResponse = await fetch('/api/admin/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          subject: 'New Reservation Note',
+          content: note,
+          reservationId: reservationId.toString(),
+          equipmentId: updatedReservation.equipment?.id,
+          equipmentName: updatedReservation.equipment?.name,
+        }),
+      });
+
+      if (!messageResponse.ok) {
+        console.error('Failed to create message for admin');
+      }
+
+      // Update local state
+      setReservations(prevReservations =>
+        prevReservations.map(res =>
+          res.id === reservationId ? { ...res, notes: note } : res
+        )
+      );
+
+      showToast('Note added successfully', 'success');
+    } catch (error) {
+      console.error('Error adding note:', error);
+      showToast(error instanceof Error ? error.message : 'Failed to add note', 'error');
+    }
+  };
+
+  const handleNoteSubmit = (reservationId: number) => {
+    const noteInput = document.getElementById(`note-${reservationId}`) as HTMLTextAreaElement;
+    if (noteInput && noteInput.value.trim()) {
+      handleAddNote(reservationId, noteInput.value.trim());
+      noteInput.value = '';
     }
   };
 
@@ -137,7 +206,11 @@ const Dashboard = () => {
                             {reservation.status}
                           </span>
                         </td>
-                        <td>{reservation.notes || '-'}</td>
+                        <td>
+                          {reservation.notes || '-'}
+                          <textarea id={`note-${reservation.id}`} className="form-control mt-2" placeholder="Add a note" />
+                          <button className="btn btn-sm btn-primary mt-2" onClick={() => handleNoteSubmit(reservation.id)}>Add Note</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
