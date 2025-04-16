@@ -24,7 +24,7 @@ interface CalendarEvent {
   extendedProps: {
     status: ReservationStatus;
     equipment: string;
-    user: string;
+    user: string | undefined;
   };
 }
 
@@ -153,7 +153,7 @@ const ReservationManagement: React.FC = () => {
         
         if (reconnectAttempts < maxReconnectAttempts) {
           const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-          showToast(`Connection lost. Retrying in ${timeout/1000} seconds...`, 'warning');
+          showToast(`Connection lost. Retrying in ${timeout/1000} seconds...`, 'info');
           
           reconnectTimeoutRef.current = setTimeout(() => {
             setReconnectAttempts(prev => prev + 1);

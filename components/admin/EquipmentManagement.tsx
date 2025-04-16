@@ -46,11 +46,11 @@ const EquipmentManagement: React.FC = () => {
   const getAuthHeaders = (isFormData = false) => {
     const token = localStorage.getItem('token');
     return isFormData 
-      ? { 'Authorization': `Bearer ${token}` }
+      ? { 'Authorization': `Bearer ${token}` } as Record<string, string>
       : {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-        };
+        } as Record<string, string>;
   };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -68,13 +68,13 @@ const EquipmentManagement: React.FC = () => {
           body: formData,
         });
 
+        const responseData = await response.json();
+
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to upload image');
+          throw new Error(responseData.message || 'Failed to upload image');
         }
 
-        const { imageUrl } = await response.json();
-        return imageUrl;
+        return responseData.imageUrl;
       } catch (error) {
         console.error('Error uploading image:', error);
         showToast(error instanceof Error ? error.message : 'Failed to upload image', 'error');
@@ -238,6 +238,11 @@ const EquipmentManagement: React.FC = () => {
         ...formData,
         imageUrls: formData.imageUrls || [], // Include imageUrls in the payload
       };
+
+      // Ensure imageUrls is always an array, even if it's empty
+      if (!Array.isArray(payload.imageUrls)) {
+        payload.imageUrls = [];
+      }
 
       console.log('Submitting equipment data:', payload);
 
