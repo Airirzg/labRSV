@@ -38,7 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const form = formidable({
       uploadDir: uploadsDir,
       keepExtensions: true,
-      maxFiles: 1,
+      maxFiles: 10, // Increase max files to support multiple uploads
       maxFileSize: 5 * 1024 * 1024, // 5MB
       filter: function ({ mimetype }) {
         return mimetype ? mimetype.includes('image') : false;
@@ -53,34 +53,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return;
         }
 
-        const file = files.image?.[0];
-        if (!file) {
-          resolve(res.status(400).json({ message: 'No file uploaded' }));
-          return;
-        }
-
-        // Validate file type
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-        if (!allowedTypes.includes(file.mimetype || '')) {
-          fs.unlinkSync(file.filepath);
-          resolve(res.status(400).json({ message: 'Invalid file type. Only JPG, PNG and GIF allowed.' }));
+        // Handle multiple files
+        const uploadedFiles = files.image;
+        if (!uploadedFiles || uploadedFiles.length === 0) {
+          resolve(res.status(400).json({ message: 'No files uploaded' }));
           return;
         }
 
         try {
-          // Generate unique filename
-          const fileName = `${Date.now()}-${file.originalFilename}`;
-          const newPath = path.join(uploadsDir, fileName);
+          // Process each file
+          const imageUrls = uploadedFiles.map(file => {
+            // Validate file type
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+            if (!allowedTypes.includes(file.mimetype || '')) {
+              // Skip invalid files
+              console.warn(`Skipping file with invalid type: ${file.mimetype}`);
+              fs.unlinkSync(file.filepath);
+              return null;
+            }
 
-          // Rename file to include timestamp
-          fs.renameSync(file.filepath, newPath);
+            // Generate unique filename
+            const fileName = `${Date.now()}-${file.originalFilename}`;
+            const newPath = path.join(uploadsDir, fileName);
 
-          // Return the relative URL
-          const imageUrl = `/uploads/${fileName}`;
-          resolve(res.status(200).json({ imageUrl }));
+            // Rename file to include timestamp
+            fs.renameSync(file.filepath, newPath);
+
+            // Return the relative URL
+            return `/uploads/${fileName}`;
+          }).filter(url => url !== null); // Filter out any null values (invalid files)
+
+          if (imageUrls.length === 0) {
+            resolve(res.status(400).json({ message: 'No valid images uploaded' }));
+            return;
+          }
+
+          // Return all image URLs
+          resolve(res.status(200).json({ 
+            imageUrl: imageUrls[0], // First image as primary
+            imageUrls: imageUrls // All images
+          }));
         } catch (error) {
-          console.error('Error processing file:', error);
-          resolve(res.status(500).json({ message: 'Error processing file' }));
+          console.error('Error processing files:', error);
+          resolve(res.status(500).json({ message: 'Error processing files' }));
         }
       });
     });

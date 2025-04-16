@@ -8,8 +8,8 @@ import Footer from '@/components/Footer';
 import Loading from '@/components/Loading';
 import ErrorMessage from '@/components/ErrorMessage';
 import { showToast } from '@/utils/notifications';
-import { Carousel } from 'react-bootstrap';
 import Head from 'next/head';
+import ImageCarousel from '@/components/ImageCarousel';
 
 interface Equipment {
   id: string;
@@ -142,32 +142,17 @@ const CreateReservation = () => {
                 {/* Equipment Images Carousel */}
                 {(equipment.imageUrl || (equipment.imageUrls && equipment.imageUrls.length > 0)) && (
                   <div className="mb-4">
-                    <Carousel className="equipment-carousel rounded overflow-hidden shadow-sm">
-                      {equipment.imageUrl && (
-                        <Carousel.Item>
-                          <div className="carousel-image-container" style={{ height: '300px', background: '#f8f9fa' }}>
-                            <img
-                              className="d-block w-100 h-100"
-                              src={equipment.imageUrl}
-                              alt={equipment.name}
-                              style={{ objectFit: 'contain' }}
-                            />
-                          </div>
-                        </Carousel.Item>
-                      )}
-                      {equipment.imageUrls?.map((imageUrl, index) => (
-                        <Carousel.Item key={index}>
-                          <div className="carousel-image-container" style={{ height: '300px', background: '#f8f9fa' }}>
-                            <img
-                              className="d-block w-100 h-100"
-                              src={imageUrl}
-                              alt={`${equipment.name} - Image ${index + 1}`}
-                              style={{ objectFit: 'contain' }}
-                            />
-                          </div>
-                        </Carousel.Item>
-                      ))}
-                    </Carousel>
+                    <ImageCarousel 
+                      images={[
+                        ...(equipment.imageUrl ? [equipment.imageUrl] : []),
+                        ...(equipment.imageUrls || [])
+                      ]}
+                      altText={equipment.name}
+                      height={300}
+                      autoPlay={true}
+                      showControls={true}
+                      showIndicators={true}
+                    />
                   </div>
                 )}
                 
