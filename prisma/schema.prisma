@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  firstName     String
+  lastName      String
+  phoneNumber   String?
+  email         String         @unique
+  password      String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  role          Role           @default(USER)
+  notifications Notification[]
+  reservations  Reservation[]
+  teamMembers   TeamMember[]
+  messages      Message[]
+}
+
+model Team {
+  id           String        @id @default(cuid())
+  teamName     String
+  leaderId     String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  reservations Reservation[]
+  members      TeamMember[]
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  userId   String
+  teamId   String
+  joinedAt DateTime @default(now())
+  team     Team     @relation(fields: [teamId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, teamId])
+}
+
+model Client {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  entity    String?
+  isTeam    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Admin {
+  id          Int      @id @default(autoincrement())
+  username    String   @unique
+  password    String
+  email       String   @unique
+  phoneNumber String?
+  firstName   String
+  lastName    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Equipment {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  categoryId   String
+  location     String?
+  availability Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  imageUrl     String?
+  imageUrls    String[]      @default([])
+  status       Status        @default(AVAILABLE)
+  isDeleted    Boolean       @default(false)
+  category     Category      @relation(fields: [categoryId], references: [id])
+  reservations Reservation[]
+}
+
+model Category {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  isDeleted   Boolean     @default(false)
+  equipment   Equipment[]
+}
+
+model Reservation {
+  id          String            @id @default(cuid())
+  startDate   DateTime
+  endDate     DateTime
+  status      ReservationStatus @default(PENDING)
+  notes       String            @default("")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  userId      String
+  user        User              @relation(fields: [userId], references: [id])
+  equipmentId String
+  equipment   Equipment         @relation(fields: [equipmentId], references: [id])
+  teamId      String?
+  team        Team?             @relation(fields: [teamId], references: [id])
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([equipmentId])
+  @@index([startDate, endDate])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id])
+}
+
+model Message {
+  id            String        @id @default(cuid())
+  subject       String
+  content       String
+  senderName    String
+  senderEmail   String
+  status        MessageStatus @default(UNREAD)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  userId        String?
+  user          User?         @relation(fields: [userId], references: [id])
+  parentId      String?       // Field to store the ID of the parent message
+  parent        Message?      @relation("MessageThread", fields: [parentId], references: [id], onDelete: SetNull)
+  replies       Message[]     @relation("MessageThread")
+
+  @@index([userId])
+  @@index([parentId])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Status {
+  AVAILABLE
+  MAINTENANCE
+  IN_USE
+}
+
+enum ReservationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ONGOING
+  FINISHED
+}
+
+enum NotificationType {
+  RESERVATION_UPDATE
+  EQUIPMENT_UPDATE
+  SYSTEM
+  MESSAGE
+}
+
+enum MessageStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
