@@ -1,0 +1,211 @@
+@startuml LabRES Database Class Diagram
+
+' Style configurations
+skinparam class {
+    BackgroundColor White
+    ArrowColor Black
+    BorderColor Black
+}
+
+' Enums
+enum Role {
+    USER
+    ADMIN
+}
+
+enum Status {
+    AVAILABLE
+    MAINTENANCE
+    IN_USE
+}
+
+enum ReservationStatus {
+    PENDING
+    APPROVED
+    REJECTED
+    ONGOING
+    FINISHED
+}
+
+enum NotificationType {
+    RESERVATION_UPDATE
+    EQUIPMENT_UPDATE
+    SYSTEM
+    MESSAGE
+}
+
+enum MessageStatus {
+    UNREAD
+    READ
+    ARCHIVED
+}
+
+' Abstract base class for common fields
+abstract class BaseEntity {
+    +id: String
+    +createdAt: Timestamp
+    +updatedAt: Timestamp
+}
+
+' Main entities with their database structure
+class User {
+    +firstName: String
+    +lastName: String
+    +phoneNumber: String {nullable}
+    +email: String {unique}
+    +password: String
+    +role: Role = 'USER'
+    --
+    Indexes
+    ..
+    {unique} email
+}
+
+class Team {
+    +teamName: String
+    +leaderId: String
+}
+
+class TeamMember {
+    +userId: String {FK}
+    +teamId: String {FK}
+    +joinedAt: Timestamp
+    --
+    Indexes
+    ..
+    {unique} (userId, teamId)
+}
+
+class Client {
+    +id: Serial
+    +email: String {unique}
+    +password: String
+    +entity: String {nullable}
+    +isTeam: Boolean = false
+}
+
+class Admin {
+    +id: Serial
+    +username: String {unique}
+    +password: String
+    +email: String {unique}
+    +phoneNumber: String {nullable}
+    +firstName: String
+    +lastName: String
+}
+
+class Equipment {
+    +name: String
+    +description: String {nullable}
+    +categoryId: String {FK}
+    +status: Status = 'AVAILABLE'
+    +location: String {nullable}
+    +availability: Boolean = true
+    +imageUrl: String {nullable}
+    +isDeleted: Boolean = false
+}
+
+class Category {
+    +name: String {unique}
+    +description: String {nullable}
+    +isDeleted: Boolean = false
+}
+
+class Reservation {
+    +userId: String {FK}
+    +teamId: String {FK, nullable}
+    +equipmentId: String {FK}
+    +startDate: Timestamp
+    +endDate: Timestamp
+    +status: ReservationStatus = 'PENDING'
+    +notes: String = ''
+    --
+    Indexes
+    ..
+    userId
+    teamId
+    equipmentId
+    (startDate, endDate)
+}
+
+class Notification {
+    +userId: String {FK}
+    +title: String
+    +message: String
+    +type: NotificationType
+    +read: Boolean = false
+}
+
+class Message {
+    +subject: String
+    +content: String
+    +senderName: String
+    +senderEmail: String
+    +status: MessageStatus = 'UNREAD'
+    +userId: String {FK, nullable}
+    +parentId: String {FK, nullable}
+    --
+    Indexes
+    ..
+    userId
+    parentId
+}
+
+' Inheritance
+User --|> BaseEntity
+Team --|> BaseEntity
+Equipment --|> BaseEntity
+Category --|> BaseEntity
+Reservation --|> BaseEntity
+Notification --|> BaseEntity
+Message --|> BaseEntity
+TeamMember --|> BaseEntity
+Client --|> BaseEntity
+Admin --|> BaseEntity
+
+' Relationships with cardinality
+User "1" -- "*" Notification : has >
+User "1" -- "*" Reservation : makes >
+User "1" -- "*" TeamMember : participates in >
+User "1" -- "*" Message : sends >
+
+Team "1" -- "*" TeamMember : contains >
+Team "1" -- "*" Reservation : has >
+
+Equipment "1" -- "*" Reservation : is reserved in >
+Equipment "*" -- "1" Category : belongs to >
+
+Message "0..1" -- "*" Message : parent < replies
+
+' Enum relationships
+User "*" -- "1" Role
+Equipment "*" -- "1" Status
+Reservation "*" -- "1" ReservationStatus
+Notification "*" -- "1" NotificationType
+Message "*" -- "1" MessageStatus
+
+' Database-specific notes
+note right of User
+  All String IDs use CUID format
+  except for Client and Admin
+  which use SERIAL (auto-increment)
+end note
+
+note right of Reservation
+  Composite index on
+  startDate and endDate
+  for efficient scheduling queries
+end note
+
+note right of Message
+  Supports threaded conversations
+  with self-referential relationship
+  via parentId
+end note
+
+note right of Equipment
+  Soft delete implemented
+  via isDeleted flag
+end note
+
+@enduml
