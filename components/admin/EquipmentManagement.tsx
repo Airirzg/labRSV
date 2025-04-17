@@ -530,20 +530,38 @@ const EquipmentManagement: React.FC = () => {
                           <img
                             src={item.imageUrl}
                             alt={item.name}
-                            style={{ height: '3rem', width: '3rem', objectFit: 'cover' }}
-                            className="rounded"
+                            style={{ 
+                              height: '3rem', 
+                              width: '3rem', 
+                              objectFit: 'cover',
+                              borderRadius: '8px',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            }}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.onerror = null;
+                              target.src = 'https://via.placeholder.com/48?text=No+Image';
+                            }}
                           />
                         )}
                         {item.imageUrls && item.imageUrls.length > 0 && (
                           <div className="image-count mt-1">
-                            <span className="badge bg-info">+{item.imageUrls.length} images</span>
+                            <span className="badge bg-primary rounded-pill">+{item.imageUrls.length}</span>
                           </div>
                         )}
                       </td>
-                      <td>{item.name}</td>
-                      <td>{item.description}</td>
-                      <td>{item.location}</td>
-                      <td>{item.category?.name}</td>
+                      <td><span className="fw-medium">{item.name}</span></td>
+                      <td>
+                        {item.description || <span className="text-muted fst-italic">No description</span>}
+                      </td>
+                      <td>
+                        <span>{item.location || 'N/A'}</span>
+                      </td>
+                      <td>
+                        <span className="badge bg-light text-dark border">
+                          {item.category?.name || 'Uncategorized'}
+                        </span>
+                      </td>
                       <td>
                         <span
                           className={`badge bg-${

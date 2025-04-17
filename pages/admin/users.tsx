@@ -11,9 +11,9 @@ const UsersPage: React.FC = () => {
           {/* Sidebar */}
           <div className="col-auto px-0 bg-dark text-white min-vh-100" style={{ width: '250px' }}>
             <div className="p-3">
-              <h5 className="mb-4 py-3 border-bottom">
+              <h5 className="mb-4 py-3 border-bottom d-flex align-items-center">
                 <i className="bi bi-grid-fill me-2"></i>
-                LabRES Admin
+                <span className="fw-bold">LabRES Admin</span>
               </h5>
               <div className="nav flex-column nav-pills">
                 <Link href="/admin/dashboard" className="nav-link text-white mb-2 d-flex align-items-center">
@@ -25,7 +25,7 @@ const UsersPage: React.FC = () => {
                 <Link href="/admin/reservations" className="nav-link text-white mb-2 d-flex align-items-center">
                   <FiCalendar className="me-2" /> Reservations
                 </Link>
-                <Link href="/admin/users" className="nav-link active text-white mb-2 d-flex align-items-center">
+                <Link href="/admin/users" className="nav-link active text-white mb-2 d-flex align-items-center" style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }}>
                   <FiUsers className="me-2" /> Users
                 </Link>
                 <Link href="/admin/messages" className="nav-link text-white mb-2 d-flex align-items-center">
@@ -38,7 +38,11 @@ const UsersPage: React.FC = () => {
           {/* Main Content */}
           <div className="col ps-md-2 pt-2">
             <div className="container-fluid">
-              <UserManagement />
+              <div className="card shadow-sm mb-4">
+                <div className="card-body p-0">
+                  <UserManagement />
+                </div>
+              </div>
             </div>
           </div>
         </div>

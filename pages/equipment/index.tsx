@@ -132,55 +132,55 @@ const EquipmentPage = () => {
         <div className="row">
           {/* Search Sidebar */}
           <div className="col-lg-3">
-            <SearchSidebar
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              selectedCategory={selectedCategory}
-              setSelectedCategory={setSelectedCategory}
-              showAvailableOnly={showAvailableOnly}
-              setShowAvailableOnly={setShowAvailableOnly}
-            />
+            <div className="sticky-sidebar" style={{ 
+              position: 'sticky', 
+              top: '20px', 
+              height: 'calc(100vh - 40px)',
+              overflowY: 'auto'
+            }}>
+              <SearchSidebar
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={setSelectedCategory}
+                showAvailableOnly={showAvailableOnly}
+                setShowAvailableOnly={setShowAvailableOnly}
+              />
+            </div>
           </div>
 
           {/* Equipment Cards */}
           <div className="col-lg-9">
             <div className="d-flex justify-content-between align-items-center mb-4">
-              <h2 className="mb-0 h4">Available Equipment</h2>
+              <h2 className="mb-0 fw-bold">Equipment Catalog</h2>
               <div className="d-flex align-items-center">
-                <span className="text-muted me-2">
-                  {filteredEquipment.length} {filteredEquipment.length === 1 ? 'item' : 'items'} found
+                <span className="badge bg-light text-dark border me-2">
+                  <i className="bi bi-grid-3x3-gap-fill me-1"></i> 
+                  {filteredEquipment.length} items
                 </span>
-                <div className="dropdown ms-2">
-                  <button className="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="sortDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i className="bi bi-sort-alpha-down me-1"></i> Sort
-                  </button>
-                  <ul className="dropdown-menu dropdown-menu-end" aria-labelledby="sortDropdown">
-                    <li><button className="dropdown-item" type="button">Name (A-Z)</button></li>
-                    <li><button className="dropdown-item" type="button">Name (Z-A)</button></li>
-                    <li><button className="dropdown-item" type="button">Category</button></li>
-                    <li><button className="dropdown-item" type="button">Status</button></li>
-                  </ul>
-                </div>
               </div>
             </div>
 
-            {error && (
-              <div className="alert alert-danger" role="alert">
-                {error}
+            {filteredEquipment.length === 0 ? (
+              <div className="text-center py-5 my-4 bg-white rounded shadow-sm">
+                <i className="bi bi-search text-muted" style={{ fontSize: '3rem' }}></i>
+                <h4 className="mt-3 mb-2">No equipment found</h4>
+                <p className="text-muted">Try adjusting your search filters</p>
+                <button 
+                  className="btn btn-outline-primary mt-2"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSelectedCategory('');
+                    setShowAvailableOnly(false);
+                  }}
+                >
+                  Clear all filters
+                </button>
               </div>
-            )}
-
-            <div className="row g-4">
-              {filteredEquipment.length === 0 ? (
-                <div className="col-12">
-                  <div className="alert alert-info d-flex align-items-center">
-                    <i className="bi bi-info-circle-fill me-2 fs-4"></i>
-                    <div>No equipment found matching your criteria.</div>
-                  </div>
-                </div>
-              ) : (
-                filteredEquipment.map((item) => (
-                  <div key={item.id} className="col-md-6 col-lg-4 mb-4">
+            ) : (
+              <div className="row g-4">
+                {filteredEquipment.map((item) => (
+                  <div key={item.id} className="col-md-6 col-lg-4">
                     <div className="card h-100 border-0 shadow-sm hover-card" style={{
                       transition: 'all 0.3s ease',
                       borderRadius: '12px',
@@ -193,6 +193,11 @@ const EquipmentPage = () => {
                             className="card-img-top"
                             alt={item.name}
                             style={{ height: '200px', objectFit: 'cover' }}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.onerror = null;
+                              target.src = 'https://via.placeholder.com/300x200?text=No+Image';
+                            }}
                           />
                         ) : (
                           <div 
@@ -228,11 +233,11 @@ const EquipmentPage = () => {
                           WebkitLineClamp: 3,
                           WebkitBoxOrient: 'vertical'
                         }}>
-                          {item.description}
+                          {item.description || <span className="text-muted fst-italic">No description available</span>}
                         </p>
                         <p className="card-text small text-muted mb-0">
                           <i className="bi bi-geo-alt-fill me-1"></i>
-                          {item.location}
+                          {item.location || 'Location not specified'}
                         </p>
                       </div>
                       <div className="card-footer bg-white border-0 p-4 pt-0">
@@ -260,9 +265,9 @@ const EquipmentPage = () => {
                       </div>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </main>
