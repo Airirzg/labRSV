@@ -18,24 +18,64 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'GET') {
       try {
         console.log('Fetching equipment...');
-        const equipment = await prisma.equipment.findMany({
-          include: {
-            category: {
-              select: {
-                id: true,
-                name: true,
+        
+        // Get query parameters for filtering
+        const { category, status, search, page = '1', limit = '10' } = req.query;
+        const pageNum = parseInt(page as string, 10);
+        const limitNum = parseInt(limit as string, 10);
+        const skip = (pageNum - 1) * limitNum;
+        
+        console.log('GET request params:', { category, status, search, page, limit }); // Debug log
+        
+        // Build the where clause based on filters
+        const where: any = {
+          isDeleted: false // Only show non-deleted equipment
+        };
+        
+        if (category) {
+          where.categoryId = category as string;
+        }
+        
+        if (status) {
+          where.status = status;
+        }
+        
+        if (search) {
+          where.OR = [
+            { name: { contains: search as string, mode: 'insensitive' } },
+            { description: { contains: search as string, mode: 'insensitive' } },
+            { location: { contains: search as string, mode: 'insensitive' } },
+          ];
+        }
+        
+        console.log('Prisma where clause:', where); // Debug log
+        
+        const [equipment, total] = await Promise.all([
+          prisma.equipment.findMany({
+            where,
+            include: {
+              category: {
+                select: {
+                  id: true,
+                  name: true,
+                },
               },
             },
-          },
-          orderBy: {
-            name: 'asc',
-          },
-        });
+            orderBy: {
+              name: 'asc',
+            },
+            skip: skip,
+            take: limitNum,
+          }),
+          prisma.equipment.count({ where }),
+        ]);
 
-        console.log(`Found ${equipment.length} equipment items`);
+        console.log(`Found ${equipment.length} equipment items out of ${total} total`);
         return res.status(200).json({
           items: equipment,
-          total: equipment.length,
+          total,
+          currentPage: pageNum,
+          totalPages: Math.ceil(total / limitNum),
         });
       } catch (error) {
         console.error('Error fetching equipment:', error);

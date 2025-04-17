@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Status } from '@prisma/client';
 import { showToast } from '@/utils/notifications';
@@ -38,10 +38,13 @@ const EquipmentManagement: React.FC = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [filter, setFilter] = useState<Status | 'ALL'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const getAuthHeaders = (isFormData = false) => {
     const token = localStorage.getItem('token');
@@ -164,7 +167,7 @@ const EquipmentManagement: React.FC = () => {
       eventSource.close();
       window.removeEventListener('refreshEquipment', handleRefreshEquipment);
     };
-  }, [currentPage, filter, searchTerm]);
+  }, [currentPage, filter, searchTerm, selectedCategory]);
 
   const fetchEquipment = async () => {
     try {
@@ -174,11 +177,12 @@ const EquipmentManagement: React.FC = () => {
         limit: '10',
         ...(filter !== 'ALL' && { status: filter }),
         ...(searchTerm && { search: searchTerm }),
+        ...(selectedCategory && { category: selectedCategory }),
       }).toString();
 
       console.log('Fetching equipment with params:', queryParams); // Debug log
 
-      const response = await fetch(`/api/equipment${queryParams ? `?${queryParams}` : ''}`, {
+      const response = await fetch(`/api/admin/equipment${queryParams ? `?${queryParams}` : ''}`, {
         headers: getAuthHeaders()
       });
 
@@ -234,7 +238,7 @@ const EquipmentManagement: React.FC = () => {
         return;
       }
 
-      const payload = {
+      const payload: any = {
         ...formData,
         imageUrls: formData.imageUrls || [], // Include imageUrls in the payload
       };
@@ -242,6 +246,11 @@ const EquipmentManagement: React.FC = () => {
       // Ensure imageUrls is always an array, even if it's empty
       if (!Array.isArray(payload.imageUrls)) {
         payload.imageUrls = [];
+      }
+
+      // Don't include userId if user is not available
+      if (user && user.id) {
+        payload.userId = user.id;
       }
 
       console.log('Submitting equipment data:', payload);
@@ -296,15 +305,68 @@ const EquipmentManagement: React.FC = () => {
         headers: getAuthHeaders()
       });
 
-      if (!response.ok) throw new Error('Failed to delete equipment');
-
-      showToast('Equipment deleted successfully', 'success');
-      fetchEquipment();
+      let errorMessage = 'Failed to delete equipment';
+      
+      // Try to parse the response as JSON
+      try {
+        const data = await response.json();
+        
+        // If successful response
+        if (response.ok) {
+          showToast(data.message || 'Equipment deleted successfully', 'success');
+          // Force a complete refresh of equipment data
+          setCurrentPage(0); // Reset to first page
+          setSearchTerm(''); // Clear any search terms
+          setFilter('ALL'); // Reset filters
+          setSelectedCategory(''); // Reset category filter
+          await fetchEquipment(); // Fetch fresh data
+          return;
+        }
+        
+        // If error response with message
+        if (data && data.message) {
+          errorMessage = data.message;
+          
+          // Add extra context for reservation conflicts
+          if (data.reservations && data.reservations > 0) {
+            errorMessage += `. There ${data.reservations === 1 ? 'is' : 'are'} ${data.reservations} active reservation${data.reservations === 1 ? '' : 's'}.`;
+          }
+        }
+      } catch (parseError) {
+        console.error('Error parsing API response:', parseError);
+        // Continue with default error message if JSON parsing fails
+      }
+      
+      throw new Error(errorMessage);
     } catch (error) {
       console.error('Error deleting equipment:', error);
-      showToast('Failed to delete equipment', 'error');
+      showToast(error instanceof Error ? error.message : 'Failed to delete equipment', 'error');
     }
   };
+
+  // Debounced search function
+  const handleSearchChange = (value: string) => {
+    setSearchInputValue(value);
+    
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Set a new timeout
+    searchTimeoutRef.current = setTimeout(() => {
+      setSearchTerm(value);
+    }, 500); // 500ms delay
+  };
+
+  // Clear timeout on component unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -477,11 +539,26 @@ const EquipmentManagement: React.FC = () => {
                   </option>
                 ))}
               </select>
+              
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="form-select"
+                style={{ width: 'auto' }}
+              >
+                <option value="">All Categories</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              
               <input
                 type="text"
                 placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchInputValue}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="form-control"
                 style={{ width: 'auto' }}
               />

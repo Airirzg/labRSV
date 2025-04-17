@@ -32,7 +32,9 @@ export default async function handler(
       console.log('GET request params:', { category, status, search, page, limit }); // Debug log
       
       // Build the where clause based on filters
-      const where: any = {};
+      const where: any = {
+        isDeleted: false // Only show non-deleted equipment
+      };
       
       if (category) {
         where.categoryId = category as string;
