@@ -1,0 +1,272 @@
+// Import variables and mixins
+@import './_variables';
+@import './_mixins';
+
+// Import Bootstrap
+@import '~bootstrap/scss/bootstrap';
+
+// Global styles
+html,
+body {
+  padding: 0;
+  margin: 0;
+  font-family: $font-family-base;
+}
+
+// Custom utility classes
+.min-h-screen {
+  min-height: 100vh;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+// Custom component styles
+.reservation-card {
+  transition: transform 0.2s ease-in-out;
+  &:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.calendar-wrapper {
+  .react-datepicker-wrapper {
+    width: 100%;
+  }
+}
+
+// Admin panel styles
+.admin-sidebar {
+  min-height: 100vh;
+  background-color: darken($light, 2%);
+}
+
+// Form styles
+.form-control:focus {
+  border-color: $primary;
+  box-shadow: 0 0 0 0.2rem rgba($primary, 0.25);
+}
+
+// Custom styles
+body {
+  font-family: $font-primary;
+  font-size: $font-size-base;
+  line-height: $line-height-base;
+  color: $text-primary;
+  background-color: $bg-primary;
+}
+
+// Navbar styles
+.navbar {
+  background-color: white;
+  box-shadow: $shadow-sm;
+  
+  .navbar-brand {
+    font-weight: $font-weight-semibold;
+    color: $brand-primary;
+  }
+  
+  .nav-link {
+    font-weight: $font-weight-medium;
+    color: $text-secondary;
+    
+    &.active {
+      color: $brand-primary;
+    }
+    
+    &:hover {
+      color: $brand-primary;
+    }
+  }
+}
+
+// Card styles
+.card {
+  @include card-shadow;
+  border: 1px solid $border-color-light;
+  
+  .card-title {
+    color: $text-primary;
+    font-weight: $font-weight-semibold;
+  }
+  
+  .card-text {
+    color: $text-secondary;
+  }
+}
+
+// Button styles
+.btn-primary {
+  @include button-primary;
+}
+
+.btn-secondary {
+  @include button-secondary;
+}
+
+// Form styles
+.form-control {
+  @include form-control;
+}
+
+// Status badges
+.badge {
+  font-weight: $font-weight-medium;
+  
+  &.bg-success {
+    background-color: $status-available !important;
+  }
+  
+  &.bg-warning {
+    background-color: $status-in-use !important;
+  }
+  
+  &.bg-danger {
+    background-color: $status-maintenance !important;
+  }
+}
+
+// Animation classes
+.fade-in {
+  @include fade-in;
+}
+
+.slide-in {
+  @include slide-in;
+}
+
+// Responsive adjustments
+@include mobile {
+  .container {
+    padding-left: $spacing-md;
+    padding-right: $spacing-md;
+  }
+}
+
+// Custom utility classes
+.text-primary {
+  color: $brand-primary !important;
+}
+
+.bg-light {
+  background-color: $bg-secondary !important;
+}
+
+.border-light {
+  border-color: $border-color-light !important;
+}
+
+.shadow-hover {
+  transition: box-shadow 0.3s ease;
+  
+  &:hover {
+    box-shadow: $shadow-lg;
+  }
+}
+
+// Home page sections
+.hero-section {
+  padding: $spacing-xxl 0;
+  background: linear-gradient(to right, rgba($brand-primary, 0.1), rgba($brand-primary, 0.05));
+  
+  .hero-image {
+    @include fade-in;
+  }
+}
+
+.why-us-section {
+  .card {
+    transition: transform 0.3s ease;
+    
+    &:hover {
+      transform: translateY(-5px);
+    }
+  }
+}
+
+.categories-section {
+  .card {
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    
+    &:hover {
+      transform: translateY(-5px);
+    }
+  }
+}
+
+.how-it-works-section {
+  .step-number {
+    position: relative;
+    z-index: 1;
+  }
+  
+  .step-connector {
+    position: absolute;
+    top: 30px;
+    left: 60%;
+    width: 80%;
+    height: 2px;
+    background-color: $border-color;
+  }
+}
+
+.review-section {
+  .card {
+    transition: transform 0.3s ease;
+    
+    &:hover {
+      transform: translateY(-5px);
+    }
+  }
+  
+  .bi-star-fill {
+    font-size: 0.8rem;
+  }
+}
+
+.footer {
+  .social-links {
+    a {
+      font-size: 1.2rem;
+      transition: color 0.3s ease;
+      
+      &:hover {
+        color: $brand-primary !important;
+      }
+    }
+  }
+}
+
+// Equipment page styles
+.search-sidebar {
+  position: sticky;
+  top: $spacing-lg;
+  
+  .form-label {
+    font-weight: $font-weight-medium;
+    color: $text-primary;
+  }
+  
+  .form-check-label {
+    color: $text-secondary;
+  }
+}
+
+.equipment-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: $shadow;
+  }
+  
+  .card-img-top {
+    transition: opacity 0.2s ease;
+    
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+}
